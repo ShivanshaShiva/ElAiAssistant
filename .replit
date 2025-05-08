@@ -1,0 +1,41 @@
+modules = ["python-3.11"]
+
+[nix]
+channel = "stable-24_05"
+packages = ["SDL2", "SDL2_image", "SDL2_mixer", "SDL2_ttf", "libcxx", "mtdev", "pkg-config"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "System Resource Monitor"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "system_monitor_app"
+
+[[workflows.workflow]]
+name = "System Resource Monitor"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "pip install kivy psutil && python main.py"
+waitForPort = 5000
+
+[[workflows.workflow]]
+name = "system_monitor_app"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python main.py"
+
+[deployment]
+run = ["sh", "-c", "pip install kivy psutil && python main.py"]
