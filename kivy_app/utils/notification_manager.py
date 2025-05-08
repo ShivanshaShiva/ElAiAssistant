@@ -1,185 +1,267 @@
 """
 Notification Manager Module.
-This module handles displaying notifications to the user.
+This module is responsible for displaying and managing notifications to the user.
 """
 
+import time
+from functools import partial
+from typing import Optional, Callable, Dict, List
+
 from kivy.app import App
+from kivy.animation import Animation
 from kivy.clock import Clock
+from kivy.core.window import Window
 from kivy.metrics import dp
-from kivy.properties import StringProperty, ObjectProperty
+from kivy.properties import (
+    StringProperty, NumericProperty, ColorProperty, 
+    BooleanProperty, ObjectProperty
+)
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.button import Button
-from kivy.uix.label import Label
-from kivy.animation import Animation
 from kivy.uix.floatlayout import FloatLayout
+from kivy.uix.label import Label
+from kivy.logger import Logger
+
 
 class Notification(BoxLayout):
-    """A notification widget that appears and disappears."""
+    """A notification widget that can be used to display messages to the user."""
     
-    text = StringProperty('')
-    color = ObjectProperty([1, 1, 1, 1])
+    text = StringProperty("")
+    icon = StringProperty("")
+    duration = NumericProperty(3)  # Seconds to show notification
+    background_color = ColorProperty([0.3, 0.3, 0.3, 0.9])
+    text_color = ColorProperty([1, 1, 1, 1])
+    dismissable = BooleanProperty(True)
     
     def __init__(self, **kwargs):
-        """Initialize the notification."""
         super(Notification, self).__init__(**kwargs)
-        
-        # Set up properties
         self.orientation = 'horizontal'
+        self.padding = [dp(10), dp(5), dp(10), dp(5)]
+        self.spacing = dp(10)
         self.size_hint = (None, None)
         self.height = dp(50)
-        self.width = dp(300)
-        self.opacity = 0  # Start invisible
-        self.pos_hint = {'center_x': 0.5, 'top': 0.95}
-        self.padding = [dp(10), dp(5)]
-        self.spacing = dp(5)
+        self.width = Window.width - dp(40)
+        self.opacity = 0
+        self.pos_hint = {'center_x': 0.5, 'top': 0}
         
-        # Background
-        from kivy.graphics import Color, RoundedRectangle
-        with self.canvas.before:
-            Color(0.2, 0.2, 0.2, 0.9)
-            self.background = RoundedRectangle(pos=self.pos, size=self.size, radius=[dp(10),])
+        # Auto-position based on window size
+        Window.bind(on_resize=self._on_window_resize)
         
-        self.bind(pos=self._update_background, size=self._update_background)
+        # Auto-dismiss after duration
+        if self.duration > 0:
+            Clock.schedule_once(self.dismiss, self.duration)
         
+        # Build UI
+        self._build_ui()
+    
+    def _build_ui(self):
+        """Build the notification UI."""
         # Message label
-        self.label = Label(
+        self.message_label = Label(
             text=self.text,
-            color=self.color,
-            size_hint=(0.9, 1),
-            text_size=(dp(270), None),
+            color=self.text_color,
+            halign='left',
             valign='middle',
-            halign='left'
+            size_hint=(1, 1),
+            shorten=True,
+            markup=True
         )
+        self.message_label.bind(size=self.message_label.setter('text_size'))
         
-        # Close button
-        self.close_button = Button(
-            text='✕',
-            size_hint=(0.1, 1),
-            background_normal='',
-            background_color=(0.3, 0.3, 0.3, 0),
-            color=(0.9, 0.9, 0.9, 1)
-        )
-        self.close_button.bind(on_press=self.dismiss)
+        # Close button (if dismissable)
+        if self.dismissable:
+            self.close_button = Button(
+                text='×',
+                size_hint=(None, 1),
+                width=dp(30),
+                background_normal='',
+                background_color=(0.5, 0.5, 0.5, 0)
+            )
+            self.close_button.bind(on_release=self.dismiss)
         
         # Add widgets
-        self.add_widget(self.label)
-        self.add_widget(self.close_button)
+        self.add_widget(self.message_label)
+        if self.dismissable:
+            self.add_widget(self.close_button)
+    
+    def _on_window_resize(self, instance, width, height):
+        """Handle window resize."""
+        self.width = width - dp(40)
+    
+    def show(self, pos_hint=None):
+        """
+        Show the notification.
         
-        # Bind properties
-        self.bind(text=self._update_text)
-        self.bind(color=self._update_color)
-    
-    def _update_background(self, instance, value):
-        """Update the background rectangle."""
-        self.background.pos = self.pos
-        self.background.size = self.size
-    
-    def _update_text(self, instance, value):
-        """Update the notification text."""
-        self.label.text = value
-    
-    def _update_color(self, instance, value):
-        """Update the notification color."""
-        self.label.color = value
-    
-    def show(self, duration=3):
-        """Show the notification."""
-        # Create fade-in animation
-        anim = Animation(opacity=1, duration=0.3)
-        
-        # Schedule automatic dismissal
-        if duration > 0:
-            Clock.schedule_once(self.dismiss, duration)
+        Args:
+            pos_hint (dict): Optional position hint to override default
+        """
+        if pos_hint:
+            self.pos_hint = pos_hint
             
-        # Start animation
+        # Animation to show
+        anim = Animation(opacity=1, pos_hint={'center_x': 0.5, 'top': 0.98}, duration=0.3)
+        anim.bind(on_complete=self._on_show_complete)
         anim.start(self)
         
-    def dismiss(self, instance=None):
-        """Immediately dismiss the notification."""
-        # Cancel any scheduled dismissal
-        Clock.unschedule(self.dismiss)
-        
-        # Create fade-out animation
-        anim = Animation(opacity=0, duration=0.3)
-        anim.bind(on_complete=self.remove_from_parent)
-        
-        # Start animation
-        anim.start(self)
+        return self
     
-    def remove_from_parent(self, instance=None, value=None):
-        """Remove the notification from its parent."""
+    def dismiss(self, *args):
+        """Dismiss the notification."""
+        # Animation to hide
+        anim = Animation(opacity=0, pos_hint={'center_x': 0.5, 'top': 1.1}, duration=0.3)
+        anim.bind(on_complete=self._on_dismiss_complete)
+        anim.start(self)
+        
+        return self
+    
+    def _on_show_complete(self, *args):
+        """Called when show animation completes."""
+        pass
+    
+    def _on_dismiss_complete(self, *args):
+        """Called when dismiss animation completes."""
+        # Remove from parent
         if self.parent:
             self.parent.remove_widget(self)
 
 
 class NotificationManager:
-    """Manages and displays notifications."""
+    """Manages notifications throughout the application."""
     
     def __init__(self):
         """Initialize the notification manager."""
-        self.notifications = []
-        self.root = None
+        self.app = None  # Will be set when used in the app
+        self.notification_overlay = None
+        self.active_notifications = []
+        self.notification_history = []
     
-    def set_root(self, root):
-        """Set the root widget to attach notifications to."""
-        self.root = root
-    
-    def _get_app(self):
-        """Get the current app instance."""
-        return App.get_running_app()
-    
-    def _show_notification(self, text, color, duration=3):
+    def _ensure_overlay(self):
         """
-        Display a notification.
+        Ensure that the notification overlay exists.
+        Creates it if it doesn't exist yet.
+        """
+        if not self.notification_overlay:
+            # Create overlay
+            self.notification_overlay = FloatLayout()
+            self.notification_overlay.is_notification_overlay = True
+            
+            # Add to root window
+            Window.add_widget(self.notification_overlay)
+    
+    def show(self, message: str, 
+             type_: str = 'info', 
+             duration: float = 3, 
+             callback: Optional[Callable] = None,
+             dismissable: bool = True) -> Notification:
+        """
+        Show a notification to the user.
         
         Args:
-            text (str): Notification text
-            color (list): Text color as [r, g, b, a]
-            duration (float): Display duration in seconds
+            message (str): The message to display
+            type_ (str): Type of notification ('info', 'success', 'warning', 'error')
+            duration (float): Time in seconds to show the notification (0 for no auto-dismiss)
+            callback (callable): Optional callback to call when notification is dismissed
+            dismissable (bool): Whether the notification can be dismissed by the user
+            
+        Returns:
+            Notification: The created notification object
         """
-        # Create the notification widget
-        notification = Notification(text=text, color=color)
+        self._ensure_overlay()
         
-        # Get app window 
-        app = self._get_app()
-        if app and hasattr(app, 'screen_manager'):
-            # Current screen is a good container for notifications
-            current_screen = app.screen_manager.current_screen
-            
-            # Check if the screen has a notification overlay
-            notification_overlay = None
-            for child in current_screen.children:
-                if isinstance(child, FloatLayout) and getattr(child, 'is_notification_overlay', False):
-                    notification_overlay = child
-                    break
-            
-            # Create notification overlay if it doesn't exist
-            if not notification_overlay:
-                notification_overlay = FloatLayout()
-                notification_overlay.is_notification_overlay = True
-                current_screen.add_widget(notification_overlay)
-            
-            # Add notification to overlay
-            notification_overlay.add_widget(notification)
-            
-            # Show the notification
-            notification.show(duration)
-            
-            # Store notification reference
-            self.notifications.append(notification)
+        # Get colors based on type
+        colors = {
+            'info': ([0.2, 0.6, 0.8, 0.95], [1, 1, 1, 1]),
+            'success': ([0.2, 0.8, 0.2, 0.95], [1, 1, 1, 1]),
+            'warning': ([0.9, 0.6, 0.1, 0.95], [1, 1, 1, 1]),
+            'error': ([0.8, 0.2, 0.2, 0.95], [1, 1, 1, 1])
+        }
+        bg_color, text_color = colors.get(type_, colors['info'])
         
-    def info(self, text, duration=3):
+        # Create notification
+        notification = Notification(
+            text=message,
+            background_color=bg_color,
+            text_color=text_color,
+            duration=duration,
+            dismissable=dismissable
+        )
+        
+        # Add to overlay
+        self.notification_overlay.add_widget(notification)
+        
+        # Record in history and active list
+        self.notification_history.append({
+            'message': message,
+            'type': type_,
+            'timestamp': time.time()
+        })
+        self.active_notifications.append(notification)
+        
+        # Show notification
+        notification.show()
+        
+        # Bind to dismissal if callback provided
+        if callback:
+            def on_dismiss(*args):
+                callback()
+                # Remove from active notifications
+                if notification in self.active_notifications:
+                    self.active_notifications.remove(notification)
+            
+            # Schedule callback after dismiss animation
+            Clock.schedule_once(lambda dt: Clock.schedule_once(on_dismiss, 0.35), duration)
+        else:
+            # Schedule removal from active list
+            def on_dismiss(dt):
+                if notification in self.active_notifications:
+                    self.active_notifications.remove(notification)
+            
+            Clock.schedule_once(lambda dt: Clock.schedule_once(on_dismiss, 0.35), duration)
+        
+        return notification
+    
+    def info(self, message: str, 
+             duration: float = 3, 
+             callback: Optional[Callable] = None,
+             dismissable: bool = True) -> Notification:
         """Show an info notification."""
-        self._show_notification(text, [0.9, 0.9, 1, 1], duration)
+        return self.show(message, 'info', duration, callback, dismissable)
     
-    def success(self, text, duration=3):
+    def success(self, message: str, 
+                duration: float = 3, 
+                callback: Optional[Callable] = None,
+                dismissable: bool = True) -> Notification:
         """Show a success notification."""
-        self._show_notification(text, [0.5, 1, 0.5, 1], duration)
+        return self.show(message, 'success', duration, callback, dismissable)
     
-    def warning(self, text, duration=3):
+    def warning(self, message: str, 
+                duration: float = 3, 
+                callback: Optional[Callable] = None,
+                dismissable: bool = True) -> Notification:
         """Show a warning notification."""
-        self._show_notification(text, [1, 0.8, 0.3, 1], duration)
+        return self.show(message, 'warning', duration, callback, dismissable)
     
-    def error(self, text, duration=4):
+    def error(self, message: str, 
+              duration: float = 5, 
+              callback: Optional[Callable] = None,
+              dismissable: bool = True) -> Notification:
         """Show an error notification."""
-        self._show_notification(text, [1, 0.5, 0.5, 1], duration)
+        return self.show(message, 'error', duration, callback, dismissable)
+    
+    def clear_all(self):
+        """Dismiss all active notifications."""
+        for notification in self.active_notifications[:]:
+            notification.dismiss()
+        self.active_notifications = []
+    
+    def get_history(self, limit: int = 10) -> List[Dict]:
+        """
+        Get the notification history.
+        
+        Args:
+            limit (int): Maximum number of history items to return
+            
+        Returns:
+            List[Dict]: List of notification history items
+        """
+        return self.notification_history[-limit:] if self.notification_history else []

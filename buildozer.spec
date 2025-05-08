@@ -7,28 +7,28 @@ title = El AI Assistant
 package.name = elaiassistant
 
 # (str) Package domain (needed for android/ios packaging)
-package.domain = org.elai
+package.domain = com.shivanshashiva
 
 # (str) Source code where the main.py live
 source.dir = .
 
 # (list) Source files to include (let empty to include all the files)
-source.include_exts = py,png,jpg,kv,atlas,json
+source.include_exts = py,png,jpg,kv,atlas,json,txt
 
 # (list) List of inclusions using pattern matching
-source.include_patterns = kivy_app/*,kivy_app/*/*
+source.include_patterns = resources/*,data/*
 
 # (list) Source files to exclude (let empty to not exclude anything)
-#source.exclude_exts = spec
+source.exclude_exts = spec,md,gitignore
 
 # (list) List of directory to exclude (let empty to not exclude anything)
-source.exclude_dirs = tests, bin, temp_repo, venv
+source.exclude_dirs = bin,build,dist,__pycache__,.pytest_cache,temp_repo/temp_repos
 
 # (list) List of exclusions using pattern matching
-#source.exclude_patterns = license,images/*/*.jpg
+source.exclude_patterns = LICENSE,*.git*,*.pyc,*.spec
 
 # (str) Application versioning (method 1)
-version = 0.1
+version = 0.1.0
 
 # (str) Application versioning (method 2)
 # version.regex = __version__ = ['"](.*)['"]
@@ -36,14 +36,11 @@ version = 0.1
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy==2.1.0,plyer,pillow,requests,python-dotenv
+requirements = python3,kivy,psutil,openai,pyjnius,android,requests,certifi,charset-normalizer,idna,urllib3
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
 # requirements.source.kivy = ../../kivy
-
-# (list) Garden requirements
-#garden_requirements =
 
 # (str) Presplash of the application
 #presplash.filename = %(source.dir)s/data/presplash.png
@@ -68,7 +65,7 @@ orientation = portrait
 osx.python_version = 3
 
 # Kivy version to use
-osx.kivy_version = 2.1.0
+osx.kivy_version = 2.3.1
 
 #
 # Android specific
@@ -79,19 +76,10 @@ fullscreen = 0
 
 # (string) Presplash background color (for android toolchain)
 # Supported formats are: #RRGGBB #AARRGGBB
-#android.presplash_color = #FFFFFF
-
-# (string) Presplash animation using Lottie format.
-# see https://lottiefiles.com/ for examples and https://airbnb.design/lottie/
-# for general documentation.
-# Lottie files can be created using various tools, like Adobe After Effect or Synfig.
-#android.presplash_lottie = "path/to/lottie/file.json"
+android.presplash_color = #FFFFFF
 
 # (list) Permissions
-android.permissions = INTERNET,WRITE_EXTERNAL_STORAGE,READ_EXTERNAL_STORAGE
-
-# (list) features (adds uses-feature -tags to manifest)
-#android.features = android.hardware.usb.host
+android.permissions = INTERNET,READ_EXTERNAL_STORAGE,WRITE_EXTERNAL_STORAGE,CAMERA,RECORD_AUDIO,ACCESS_FINE_LOCATION
 
 # (int) Target Android API, should be as high as possible.
 android.api = 33
@@ -103,13 +91,13 @@ android.minapi = 21
 android.sdk = 33
 
 # (str) Android NDK version to use
-android.ndk = 23b
+android.ndk = 25c
 
 # (int) Android NDK API to use. This is the minimum API your app will support, it should usually match android.minapi.
 android.ndk_api = 21
 
 # (bool) Use --private data storage (True) or --dir public storage (False)
-#android.private_storage = True
+android.private_storage = True
 
 # (str) Android NDK directory (if empty, it will be automatically downloaded.)
 #android.ndk_path =
@@ -123,13 +111,13 @@ android.ndk_api = 21
 # (bool) If True, then skip trying to update the Android sdk
 # This can be useful to avoid excess Internet downloads or save time
 # when an update is due and you just want to test/build your package
-# android.skip_update = False
+android.skip_update = False
 
 # (bool) If True, then automatically accept SDK license
 # agreements. This is intended for automation only. If set to False,
 # the default, you will be shown the license when first running
 # buildozer.
-# android.accept_sdk_license = False
+android.accept_sdk_license = True
 
 # (str) Android entry point, default is ok for Kivy-based app
 #android.entrypoint = org.kivy.android.PythonActivity
@@ -181,13 +169,25 @@ android.ndk_api = 21
 # 2) android.add_assets = source_asset_path:destination_asset_relative_path
 #android.add_assets =
 
+# (list) Put these files or directories in the apk res directory.
+# The option may be used in three ways, the value may contain one or zero ':'
+# Some examples:
+# 1) A file to add to resources, legal resource names contain ['a-z','0-9','_']
+# android.add_resources = my_icons/all-inclusive.png:drawable/all_inclusive.png
+# 2) A directory, here  'legal_icons' must contain resources of one kind
+# android.add_resources = legal_icons:drawable
+# 3) A directory, here 'legal_resources' must contain one or more directories, 
+# each of a resource kind:  drawable, xml, etc...
+# android.add_resources = legal_resources
+#android.add_resources =
+
 # (list) Gradle dependencies to add
 #android.gradle_dependencies =
 
 # (bool) Enable AndroidX support. Enable when 'android.gradle_dependencies'
 # contains an 'androidx' package, or any package from Kotlin source.
-# android.enable_androidx requires android.use_androidx_packages to be true.
-android.enable_androidx = True
+# android.enable_androidx requires android.use_gradle=True
+#android.enable_androidx = True
 
 # (list) add java compile options
 # this can for example be necessary when importing certain java libraries using the 'android.gradle_dependencies' option
@@ -219,6 +219,9 @@ android.enable_androidx = True
 # (str) XML file to include as an intent filters in <activity> tag
 #android.manifest.intent_filters =
 
+# (list) Copy these files to src/main/res/xml/ (used for example with intent-filters)
+#android.res_xml = PATH_TO_FILE,
+
 # (str) launchMode to set for the main activity
 #android.manifest.launch_mode = standard
 
@@ -246,8 +249,8 @@ android.enable_androidx = True
 # (str) Android logcat filters to use
 #android.logcat_filters = *:S python:D
 
-# (bool) Android logcat only display log for activity's pid
-#android.logcat_pid_only = False
+# (bool) Android logcat only display warnings and errors
+android.logcat_only_errors = True
 
 # (str) Android additional adb arguments
 #android.adb_args = -H host.docker.internal
@@ -276,13 +279,13 @@ android.allow_backup = True
 # android.manifest_placeholders = [:]
 
 # (bool) Skip byte compile for .py files
-# android.no-byte-compile-python = False
+# android.no-byte-compile = False
 
-# (str) The format used to package the app for release mode (aab or apk).
-# android.release_artifact = aab
+# (str) The format used to package the app for release mode (aab or apk or aar).
+android.release_artifact = apk
 
-# (str) The format used to package the app for debug mode (apk or aab).
-# android.debug_artifact = apk
+# (str) The format used to package the app for debug mode (apk or aar).
+android.debug_artifact = apk
 
 #
 # Python for android (p4a) specific
@@ -324,6 +327,7 @@ android.allow_backup = True
 
 # (str) extra command line arguments to pass when invoking pythonforandroid.toolchain
 #p4a.extra_args =
+
 
 #
 # iOS specific
@@ -370,6 +374,7 @@ ios.codesign.allowed = false
 # This option should be defined along with `app_url` and `display_image_url` options.
 #ios.manifest.full_size_image_url =
 
+
 [buildozer]
 
 # (int) Log level (0 = error only, 1 = info, 2 = debug (with command output))
@@ -379,7 +384,7 @@ log_level = 2
 warn_on_root = 1
 
 # (str) Path to build artifact storage, absolute or relative to spec file
-build_dir = ./.buildozer
+# build_dir = ./.buildozer
 
 # (str) Path to build output (i.e. .apk, .aab, .ipa) storage
 # bin_dir = ./bin
@@ -402,6 +407,7 @@ build_dir = ./.buildozer
 #data/audio/*.wav
 #data/images/original/*
 #
+
 
 #    -----------------------------------------------------------------------------
 #    Profiles

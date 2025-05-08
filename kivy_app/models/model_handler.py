@@ -1,411 +1,326 @@
 """
 Model Handler Module.
-This module provides interfaces for different AI models and quantum backends.
+This module is responsible for managing AI model interactions and API calls.
 """
 
 import os
 import json
 import time
 import threading
+from typing import Dict, Any, Optional, List, Union
 from enum import Enum
-from typing import Dict, List, Callable, Optional, Any, Union
+
 from kivy.logger import Logger
-from kivy.clock import Clock
 
-# Model Types
+
 class ModelType(Enum):
-    """Enum for different model types."""
-    GEMMA = "gemma"
+    """Enum for supported AI model types."""
     CHATGPT = "chatgpt"
+    GEMMA = "gemma"
     QISKIT = "qiskit"
-    
-    @classmethod
-    def from_string(cls, type_str: str) -> Optional['ModelType']:
-        """Convert string to ModelType."""
-        try:
-            return cls(type_str.lower())
-        except (ValueError, AttributeError):
-            return None
 
-# Model Status
-class ModelStatus(Enum):
-    """Enum for model status."""
-    NOT_INITIALIZED = "not_initialized"
-    INITIALIZING = "initializing"
-    READY = "ready"
-    ERROR = "error"
 
 class ModelHandler:
-    """Handles various AI models and quantum backends."""
+    """Handles interactions with various AI models."""
     
     def __init__(self):
         """Initialize the model handler."""
-        # Configuration directory and file
-        self.config_dir = os.path.join(os.path.expanduser('~'), '.elai')
-        self.config_file = os.path.join(self.config_dir, 'models_config.json')
-        
-        # Initialize configurations
-        self.api_keys = {}
-        self.model_paths = {}
-        self.model_configs = {}
-        
-        # Initialize models
         self.models = {
-            ModelType.GEMMA: None,
-            ModelType.CHATGPT: None,
-            ModelType.QISKIT: None
+            ModelType.CHATGPT: {"initialized": False, "api_key": None},
+            ModelType.GEMMA: {"initialized": False, "api_key": None, "local_path": None},
+            ModelType.QISKIT: {"initialized": False, "api_key": None}
         }
         
-        # Status of models
-        self.status = {
-            ModelType.GEMMA: {
-                'status': ModelStatus.NOT_INITIALIZED.value,
-                'error': None
-            },
-            ModelType.CHATGPT: {
-                'status': ModelStatus.NOT_INITIALIZED.value,
-                'error': None
-            },
-            ModelType.QISKIT: {
-                'status': ModelStatus.NOT_INITIALIZED.value,
-                'error': None
-            }
-        }
-        
-        # Status change callbacks
-        self.status_callbacks = []
-        
-        # Load configuration
-        self._ensure_config_dir()
-        self._load_config()
+        # Threading lock for model initialization
+        self.lock = threading.Lock()
     
-    def _ensure_config_dir(self):
-        """Ensure the configuration directory exists."""
-        if not os.path.exists(self.config_dir):
-            try:
-                os.makedirs(self.config_dir)
-            except OSError as e:
-                Logger.error(f"ModelHandler: Failed to create config directory: {e}")
-    
-    def _load_config(self):
-        """Load configuration from file."""
-        if os.path.exists(self.config_file):
-            try:
-                with open(self.config_file, 'r') as f:
-                    config = json.load(f)
-                    self.api_keys = config.get('api_keys', {})
-                    self.model_paths = config.get('model_paths', {})
-                    self.model_configs = config.get('model_configs', {})
-            except (json.JSONDecodeError, OSError) as e:
-                Logger.error(f"ModelHandler: Failed to load config: {e}")
-    
-    def _save_config(self):
-        """Save configuration to file."""
-        config = {
-            'api_keys': self.api_keys,
-            'model_paths': self.model_paths,
-            'model_configs': self.model_configs
-        }
-        
-        try:
-            with open(self.config_file, 'w') as f:
-                json.dump(config, f, indent=2)
-            return True
-        except OSError as e:
-            Logger.error(f"ModelHandler: Failed to save config: {e}")
-            return False
-    
-    def get_api_key(self, model_type: ModelType) -> str:
-        """Get API key for a model."""
-        if model_type is None:
-            return ""
-        return self.api_keys.get(model_type.value, "")
-    
-    def set_api_key(self, model_type: ModelType, api_key: str) -> bool:
-        """Set API key for a model."""
-        if model_type is None:
-            return False
-        
-        self.api_keys[model_type.value] = api_key
-        
-        # Save config
-        return self._save_config()
-    
-    def get_model_path(self, model_type: ModelType) -> str:
-        """Get local model path for a model."""
-        if model_type is None:
-            return ""
-        return self.model_paths.get(model_type.value, "")
-    
-    def set_model_path(self, model_type: ModelType, model_path: str) -> bool:
-        """Set local model path for a model."""
-        if model_type is None:
-            return False
-        
-        self.model_paths[model_type.value] = model_path
-        
-        # Save config
-        return self._save_config()
-    
-    def get_status(self, model_type: ModelType) -> Dict[str, Any]:
-        """Get status of a model."""
-        if model_type is None:
-            return {'status': ModelStatus.ERROR.value, 'error': 'Invalid model type'}
-        
-        return self.status.get(model_type, {
-            'status': ModelStatus.NOT_INITIALIZED.value,
-            'error': None
-        })
-    
-    def _set_status(self, model_type: ModelType, status: ModelStatus, error: Optional[str] = None):
-        """Set status of a model and notify callbacks."""
-        if model_type is None:
-            return
-        
-        self.status[model_type] = {
-            'status': status.value,
-            'error': error
-        }
-        
-        # Notify callbacks
-        for callback in self.status_callbacks:
-            try:
-                callback(model_type, status, error)
-            except Exception as e:
-                Logger.error(f"ModelHandler: Error in status callback: {e}")
-    
-    def register_status_callback(self, callback: Callable[[ModelType, ModelStatus, Optional[str]], None]):
-        """Register callback for status changes."""
-        if callback not in self.status_callbacks:
-            self.status_callbacks.append(callback)
-    
-    def unregister_status_callback(self, callback: Callable[[ModelType, ModelStatus, Optional[str]], None]):
-        """Unregister callback for status changes."""
-        if callback in self.status_callbacks:
-            self.status_callbacks.remove(callback)
-    
-    def initialize_model(self, model_type: ModelType):
+    def initialize_openai(self, api_key: str) -> bool:
         """
-        Initialize a model with the configured API key or local path.
-        This is done in a background thread to avoid blocking the UI.
-        """
-        if model_type is None:
-            return
-        
-        # Set status to initializing
-        self._set_status(model_type, ModelStatus.INITIALIZING)
-        
-        # Start initialization in a background thread
-        thread = threading.Thread(
-            target=self._initialize_model_thread,
-            args=(model_type,)
-        )
-        thread.daemon = True
-        thread.start()
-    
-    def _initialize_model_thread(self, model_type: ModelType):
-        """Background thread for model initialization."""
-        try:
-            api_key = self.get_api_key(model_type)
-            model_path = self.get_model_path(model_type)
-            
-            # Initialize based on model type
-            if model_type == ModelType.GEMMA:
-                self._initialize_gemma(api_key, model_path)
-            elif model_type == ModelType.CHATGPT:
-                self._initialize_chatgpt(api_key)
-            elif model_type == ModelType.QISKIT:
-                self._initialize_qiskit(api_key)
-            
-            # Set status to ready
-            self._set_status(model_type, ModelStatus.READY)
-            
-        except Exception as e:
-            # Set status to error
-            error_msg = str(e)
-            Logger.error(f"ModelHandler: Error initializing {model_type.value}: {error_msg}")
-            self._set_status(model_type, ModelStatus.ERROR, error_msg)
-    
-    def _initialize_gemma(self, api_key: str, local_path: Optional[str] = None):
-        """
-        Initialize Gemma model - supports both API and local loading.
-        
-        Args:
-            api_key (str): API key for Gemma API
-            local_path (str, optional): Path to local model file
-        """
-        # Placeholder for actual implementation
-        # In a real implementation, this would initialize the Gemma model
-        # Either using an API client or loading a local model
-        
-        # Simulate initialization delay
-        time.sleep(1)
-        
-        # For demonstration, we'll just check if API key or local path is provided
-        if not api_key and not local_path:
-            raise ValueError("No API key or local model path provided for Gemma")
-        
-        # Store model instance (placeholder)
-        self.models[ModelType.GEMMA] = {
-            "type": "gemma",
-            "api_key": api_key,
-            "local_path": local_path,
-            "initialized": True
-        }
-    
-    def _initialize_chatgpt(self, api_key: str):
-        """
-        Initialize ChatGPT API.
+        Initialize the OpenAI API.
         
         Args:
             api_key (str): OpenAI API key
+            
+        Returns:
+            bool: True if successful, False otherwise
         """
-        # Placeholder for actual implementation
-        # In a real implementation, this would initialize the OpenAI client
-        
-        # Simulate initialization delay
-        time.sleep(1)
-        
-        # Check if API key is provided
-        if not api_key:
-            raise ValueError("No API key provided for ChatGPT")
-        
-        # Store model instance (placeholder)
-        self.models[ModelType.CHATGPT] = {
-            "type": "chatgpt",
-            "api_key": api_key,
-            "initialized": True
-        }
+        try:
+            # Import openai here to prevent immediate dependency requirement
+            import openai
+            from openai import OpenAI
+            
+            # Set API key
+            client = OpenAI(api_key=api_key)
+            
+            # Test API connection
+            response = client.chat.completions.create(
+                model="gpt-3.5-turbo",
+                messages=[{"role": "user", "content": "Hello, are you working?"}],
+                max_tokens=10
+            )
+            
+            # Check if response is valid
+            if response and hasattr(response, 'choices') and len(response.choices) > 0:
+                # Store API key and client
+                with self.lock:
+                    self.models[ModelType.CHATGPT] = {
+                        "initialized": True,
+                        "api_key": api_key,
+                        "client": client
+                    }
+                return True
+            else:
+                Logger.error("ModelHandler: OpenAI API initialization failed - invalid response")
+                return False
+                
+        except Exception as e:
+            Logger.error(f"ModelHandler: OpenAI API initialization failed: {e}")
+            return False
     
-    def _initialize_qiskit(self, api_key: str):
+    def initialize_gemma(self, api_key: Optional[str] = None, local_path: Optional[str] = None) -> bool:
         """
-        Initialize Qiskit Runtime service.
+        Initialize the Gemma model.
         
         Args:
-            api_key (str): IBM Quantum API key
+            api_key (str, optional): Gemma API key for cloud usage
+            local_path (str, optional): Path to local Gemma model files
+            
+        Returns:
+            bool: True if successful, False otherwise
         """
-        # Placeholder for actual implementation
-        # In a real implementation, this would initialize the Qiskit Runtime client
+        try:
+            if not api_key and not local_path:
+                Logger.error("ModelHandler: Either API key or local_path must be provided for Gemma")
+                return False
+            
+            if local_path:
+                # Try to initialize local Gemma model
+                # This is a placeholder - in a real app, you'd use the actual Gemma SDK
+                if os.path.exists(local_path):
+                    with self.lock:
+                        self.models[ModelType.GEMMA] = {
+                            "initialized": True,
+                            "api_key": None,
+                            "local_path": local_path,
+                            "mode": "local"
+                        }
+                    return True
+                else:
+                    Logger.error(f"ModelHandler: Local Gemma model not found at {local_path}")
+                    return False
+            else:
+                # Initialize cloud Gemma API
+                # This is a placeholder - in a real app, you'd use the actual Gemma API
+                with self.lock:
+                    self.models[ModelType.GEMMA] = {
+                        "initialized": True,
+                        "api_key": api_key,
+                        "local_path": None,
+                        "mode": "cloud"
+                    }
+                return True
+                
+        except Exception as e:
+            Logger.error(f"ModelHandler: Gemma initialization failed: {e}")
+            return False
+    
+    def initialize_qiskit(self, api_key: str) -> bool:
+        """
+        Initialize the Qiskit Runtime.
         
-        # Simulate initialization delay
-        time.sleep(1)
+        Args:
+            api_key (str): Qiskit API key
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # This is a placeholder - in a real app, you'd use the actual Qiskit SDK
+            # Import qiskit here to prevent immediate dependency requirement
+            # import qiskit
+            
+            with self.lock:
+                self.models[ModelType.QISKIT] = {
+                    "initialized": True,
+                    "api_key": api_key
+                }
+            return True
+                
+        except Exception as e:
+            Logger.error(f"ModelHandler: Qiskit initialization failed: {e}")
+            return False
+    
+    def is_initialized(self, model_type: ModelType) -> bool:
+        """
+        Check if a specific model is initialized.
         
-        # Check if API key is provided
-        if not api_key:
-            raise ValueError("No API key provided for Qiskit")
+        Args:
+            model_type (ModelType): The model type to check
+            
+        Returns:
+            bool: True if initialized, False otherwise
+        """
+        return self.models.get(model_type, {}).get("initialized", False)
+    
+    def get_initialized_models(self) -> List[ModelType]:
+        """
+        Get a list of all initialized models.
         
-        # Store model instance (placeholder)
-        self.models[ModelType.QISKIT] = {
-            "type": "qiskit",
-            "api_key": api_key,
-            "initialized": True
-        }
+        Returns:
+            List[ModelType]: List of initialized model types
+        """
+        return [model_type for model_type in self.models if self.is_initialized(model_type)]
     
     def generate_text(self, model_type: ModelType, prompt: str) -> Dict[str, Any]:
         """
-        Generate text using the specified model.
+        Generate text using a specific model.
         
         Args:
-            model_type (ModelType): Type of model to use
-            prompt (str): Text prompt
+            model_type (ModelType): The model to use
+            prompt (str): Text prompt to send to the model
             
         Returns:
-            dict: Result with success flag and generated text
+            Dict[str, Any]: Results dict with 'success', 'text', and optional 'error'
         """
-        if model_type is None:
-            return {'success': False, 'error': 'Invalid model type'}
+        if not self.is_initialized(model_type):
+            return {
+                "success": False,
+                "error": f"Model {model_type.value} is not initialized"
+            }
         
-        # Check if model is ready
-        status = self.get_status(model_type)
-        if status.get('status') != ModelStatus.READY.value:
-            return {'success': False, 'error': f'Model {model_type.value} is not ready'}
-        
-        # Generate based on model type
         try:
-            if model_type == ModelType.GEMMA:
-                return self._generate_gemma(prompt)
-            elif model_type == ModelType.CHATGPT:
+            if model_type == ModelType.CHATGPT:
                 return self._generate_chatgpt(prompt)
+            elif model_type == ModelType.GEMMA:
+                return self._generate_gemma(prompt)
             else:
-                return {'success': False, 'error': f'Text generation not supported for {model_type.value}'}
-        
+                return {
+                    "success": False,
+                    "error": f"Text generation not supported for {model_type.value}"
+                }
         except Exception as e:
-            error_msg = str(e)
-            Logger.error(f"ModelHandler: Error generating text with {model_type.value}: {error_msg}")
-            return {'success': False, 'error': error_msg}
-    
-    def _generate_gemma(self, prompt: str) -> Dict[str, Any]:
-        """
-        Generate text using Gemma model.
-        
-        Args:
-            prompt (str): Text prompt
-            
-        Returns:
-            dict: Result with success flag and generated text
-        """
-        # Placeholder for actual implementation
-        # In a real implementation, this would call the Gemma API or local model
-        
-        # Simulate generation delay
-        time.sleep(2)
-        
-        # For demonstration, return a sample response
-        return {
-            'success': True,
-            'text': f"This is a sample response from Gemma for the prompt: '{prompt}'\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
-        }
+            Logger.error(f"ModelHandler: Text generation failed: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
     
     def _generate_chatgpt(self, prompt: str) -> Dict[str, Any]:
         """
-        Generate text using ChatGPT model.
+        Generate text using OpenAI's ChatGPT.
         
         Args:
-            prompt (str): Text prompt
+            prompt (str): Text prompt to send to the model
             
         Returns:
-            dict: Result with success flag and generated text
+            Dict[str, Any]: Results dict with 'success', 'text', and optional 'error'
         """
-        # Placeholder for actual implementation
-        # In a real implementation, this would call the OpenAI API
-        
-        # Simulate generation delay
-        time.sleep(2)
-        
-        # For demonstration, return a sample response
-        return {
-            'success': True,
-            'text': f"This is a sample response from ChatGPT for the prompt: '{prompt}'\n\nLorem ipsum dolor sit amet, consectetur adipiscing elit. Sed do eiusmod tempor incididunt ut labore et dolore magna aliqua."
-        }
-    
-    def run_quantum_job(self, circuit, **kwargs) -> Dict[str, Any]:
-        """
-        Run quantum job using Qiskit Runtime.
-        
-        Args:
-            circuit: Quantum circuit
-            **kwargs: Additional arguments for the job
+        try:
+            model_info = self.models[ModelType.CHATGPT]
+            client = model_info.get("client")
             
-        Returns:
-            dict: Result with success flag and job results
-        """
-        # Check if Qiskit is ready
-        status = self.get_status(ModelType.QISKIT)
-        if status.get('status') != ModelStatus.READY.value:
-            return {'success': False, 'error': 'Qiskit is not ready'}
-        
-        # Placeholder for actual implementation
-        # In a real implementation, this would run a quantum job on IBM Quantum
-        
-        # Simulate job execution
-        time.sleep(2)
-        
-        # For demonstration, return a sample result
-        return {
-            'success': True,
-            'results': {
-                'job_id': 'sample-job-id',
-                'counts': {'0': 512, '1': 512},
-                'status': 'completed'
+            if not client:
+                return {"success": False, "error": "OpenAI client not initialized"}
+            
+            # Call the API
+            response = client.chat.completions.create(
+                model="gpt-4o",  # the newest OpenAI model is "gpt-4o" which was released May 13, 2024
+                messages=[{"role": "user", "content": prompt}],
+                max_tokens=1024
+            )
+            
+            # Extract the generated text
+            if response and hasattr(response, 'choices') and len(response.choices) > 0:
+                generated_text = response.choices[0].message.content
+                return {
+                    "success": True,
+                    "text": generated_text
+                }
+            else:
+                return {
+                    "success": False,
+                    "error": "Invalid response from OpenAI API"
+                }
+                
+        except Exception as e:
+            Logger.error(f"ModelHandler: ChatGPT generation failed: {e}")
+            return {
+                "success": False,
+                "error": str(e)
             }
-        }
+    
+    def _generate_gemma(self, prompt: str) -> Dict[str, Any]:
+        """
+        Generate text using Gemma.
+        
+        Args:
+            prompt (str): Text prompt to send to the model
+            
+        Returns:
+            Dict[str, Any]: Results dict with 'success', 'text', and optional 'error'
+        """
+        try:
+            model_info = self.models[ModelType.GEMMA]
+            mode = model_info.get("mode")
+            
+            if mode == "local":
+                # This is a placeholder for local Gemma model inference
+                # In a real app, you'd use the actual Gemma local inference
+                local_path = model_info.get("local_path")
+                
+                # Simulate generation with a placeholder
+                generated_text = f"[Local Gemma model response to: {prompt[:50]}...]"
+                return {
+                    "success": True,
+                    "text": generated_text
+                }
+                
+            elif mode == "cloud":
+                # This is a placeholder for cloud Gemma API
+                # In a real app, you'd use the actual Gemma cloud API
+                api_key = model_info.get("api_key")
+                
+                # Simulate generation with a placeholder
+                generated_text = f"[Cloud Gemma API response to: {prompt[:50]}...]"
+                return {
+                    "success": True,
+                    "text": generated_text
+                }
+                
+            else:
+                return {
+                    "success": False,
+                    "error": "Invalid Gemma mode"
+                }
+                
+        except Exception as e:
+            Logger.error(f"ModelHandler: Gemma generation failed: {e}")
+            return {
+                "success": False,
+                "error": str(e)
+            }
+    
+    def get_model_status(self, model_type: ModelType) -> Dict[str, Any]:
+        """
+        Get the status and info about a specific model.
+        
+        Args:
+            model_type (ModelType): The model type to check
+            
+        Returns:
+            Dict[str, Any]: Model status information
+        """
+        model_info = self.models.get(model_type, {})
+        
+        # Copy the dict to avoid exposing internal state
+        status = model_info.copy()
+        
+        # Remove sensitive information
+        if "api_key" in status:
+            status["api_key"] = "***" if status["api_key"] else None
+        
+        # Remove internal objects
+        if "client" in status:
+            status["client"] = "initialized" if status["client"] else None
+            
+        return status

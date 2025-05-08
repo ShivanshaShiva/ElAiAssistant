@@ -1,245 +1,192 @@
 """
 Sanskrit NLP Module.
-This module provides Sanskrit language processing functionality.
+This module provides utilities for processing Sanskrit text.
 """
 
 import os
-import json
 import re
+import json
+import string
+from typing import List, Dict, Tuple, Optional, Any, Union
+from datetime import datetime
+
 from kivy.logger import Logger
 
+
 class SanskritNLP:
-    """Provides Sanskrit language processing functionality."""
+    """
+    Sanskrit Natural Language Processing Utility.
+    Provides functions for Sanskrit transliteration, tokenization,
+    sandhi analysis, and grammar rule learning.
+    """
     
-    def __init__(self, data_dir='data/sanskrit'):
+    def __init__(self, rules_path: str = None):
         """
         Initialize the Sanskrit NLP processor.
         
         Args:
-            data_dir (str): Directory to store data files
+            rules_path (str): Path to the grammar rules file (JSON)
         """
-        self.data_dir = data_dir
-        self._init_data_dir()
+        self.rules_path = rules_path or os.path.join(
+            os.path.dirname(os.path.abspath(__file__)), 
+            '..', '..', 'data', 'sanskrit_rules.json'
+        )
         
-        # Rules
-        self.grammar_rules = []
-        self.sandhi_rules = []
-        self._load_rules()
+        # Ensure directory exists
+        os.makedirs(os.path.dirname(self.rules_path), exist_ok=True)
         
-        # Transliteration schemes
-        self.transliteration_maps = {
-            'iast_to_devanagari': {
-                'a': 'अ', 'ā': 'आ', 'i': 'इ', 'ī': 'ई', 'u': 'उ', 'ū': 'ऊ',
-                'ṛ': 'ऋ', 'ṝ': 'ॠ', 'ḷ': 'ऌ', 'e': 'ए', 'ai': 'ऐ', 'o': 'ओ', 'au': 'औ',
-                'ka': 'क', 'kha': 'ख', 'ga': 'ग', 'gha': 'घ', 'ṅa': 'ङ',
-                'ca': 'च', 'cha': 'छ', 'ja': 'ज', 'jha': 'झ', 'ña': 'ञ',
-                'ṭa': 'ट', 'ṭha': 'ठ', 'ḍa': 'ड', 'ḍha': 'ढ', 'ṇa': 'ण',
-                'ta': 'त', 'tha': 'थ', 'da': 'द', 'dha': 'ध', 'na': 'न',
-                'pa': 'प', 'pha': 'फ', 'ba': 'ब', 'bha': 'भ', 'ma': 'म',
-                'ya': 'य', 'ra': 'र', 'la': 'ल', 'va': 'व',
-                'śa': 'श', 'ṣa': 'ष', 'sa': 'स', 'ha': 'ह',
-                'aṃ': 'अं', 'aḥ': 'अः'
-            },
-            'devanagari_to_iast': {
-                'अ': 'a', 'आ': 'ā', 'इ': 'i', 'ई': 'ī', 'उ': 'u', 'ऊ': 'ū',
-                'ऋ': 'ṛ', 'ॠ': 'ṝ', 'ऌ': 'ḷ', 'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au',
-                'क': 'ka', 'ख': 'kha', 'ग': 'ga', 'घ': 'gha', 'ङ': 'ṅa',
-                'च': 'ca', 'छ': 'cha', 'ज': 'ja', 'झ': 'jha', 'ञ': 'ña',
-                'ट': 'ṭa', 'ठ': 'ṭha', 'ड': 'ḍa', 'ढ': 'ḍha', 'ण': 'ṇa',
-                'त': 'ta', 'थ': 'tha', 'द': 'da', 'ध': 'dha', 'न': 'na',
-                'प': 'pa', 'फ': 'pha', 'ब': 'ba', 'भ': 'bha', 'म': 'ma',
-                'य': 'ya', 'र': 'ra', 'ल': 'la', 'व': 'va',
-                'श': 'śa', 'ष': 'ṣa', 'स': 'sa', 'ह': 'ha',
-                'ं': 'ṃ', 'ः': 'ḥ'
-            },
-            'hk_to_iast': {
-                'a': 'a', 'A': 'ā', 'i': 'i', 'I': 'ī', 'u': 'u', 'U': 'ū',
-                'R': 'ṛ', 'RR': 'ṝ', 'lR': 'ḷ', 'e': 'e', 'ai': 'ai', 'o': 'o', 'au': 'au',
-                'k': 'k', 'kh': 'kh', 'g': 'g', 'gh': 'gh', 'G': 'ṅ',
-                'c': 'c', 'ch': 'ch', 'j': 'j', 'jh': 'jh', 'J': 'ñ',
-                'T': 'ṭ', 'Th': 'ṭh', 'D': 'ḍ', 'Dh': 'ḍh', 'N': 'ṇ',
-                't': 't', 'th': 'th', 'd': 'd', 'dh': 'dh', 'n': 'n',
-                'p': 'p', 'ph': 'ph', 'b': 'b', 'bh': 'bh', 'm': 'm',
-                'y': 'y', 'r': 'r', 'l': 'l', 'v': 'v',
-                'z': 'ś', 'S': 'ṣ', 's': 's', 'h': 'h',
-                'M': 'ṃ', 'H': 'ḥ'
-            },
-            'iast_to_hk': {
-                'a': 'a', 'ā': 'A', 'i': 'i', 'ī': 'I', 'u': 'u', 'ū': 'U',
-                'ṛ': 'R', 'ṝ': 'RR', 'ḷ': 'lR', 'e': 'e', 'ai': 'ai', 'o': 'o', 'au': 'au',
-                'k': 'k', 'kh': 'kh', 'g': 'g', 'gh': 'gh', 'ṅ': 'G',
-                'c': 'c', 'ch': 'ch', 'j': 'j', 'jh': 'jh', 'ñ': 'J',
-                'ṭ': 'T', 'ṭh': 'Th', 'ḍ': 'D', 'ḍh': 'Dh', 'ṇ': 'N',
-                't': 't', 'th': 'th', 'd': 'd', 'dh': 'dh', 'n': 'n',
-                'p': 'p', 'ph': 'ph', 'b': 'b', 'bh': 'bh', 'm': 'm',
-                'y': 'y', 'r': 'r', 'l': 'l', 'v': 'v',
-                'ś': 'z', 'ṣ': 'S', 's': 's', 'h': 'h',
-                'ṃ': 'M', 'ḥ': 'H'
-            }
-        }
+        # Load grammar rules
+        self.rules = self._load_rules()
     
-    def _init_data_dir(self):
-        """Initialize the data directory structure."""
-        if not os.path.exists(self.data_dir):
-            try:
-                os.makedirs(self.data_dir)
-                Logger.info(f"SanskritNLP: Created data directory at {self.data_dir}")
-            except OSError as e:
-                Logger.error(f"SanskritNLP: Failed to create data directory: {e}")
+    def _load_rules(self) -> Dict:
+        """
+        Load grammar rules from file.
         
-        # Create necessary files
-        grammar_rules_file = os.path.join(self.data_dir, 'grammar_rules.json')
-        sandhi_rules_file = os.path.join(self.data_dir, 'sandhi_rules.json')
-        
-        if not os.path.exists(grammar_rules_file):
-            self._create_default_file(grammar_rules_file, [])
-        
-        if not os.path.exists(sandhi_rules_file):
-            self._create_default_file(sandhi_rules_file, [])
-    
-    def _create_default_file(self, file_path, default_content):
-        """Create a default file with the given content."""
+        Returns:
+            Dict: Dictionary of grammar rules
+        """
         try:
-            with open(file_path, 'w') as f:
-                json.dump(default_content, f, indent=2)
-            Logger.info(f"SanskritNLP: Created default file at {file_path}")
-        except OSError as e:
-            Logger.error(f"SanskritNLP: Failed to create default file: {e}")
-    
-    def _load_rules(self):
-        """Load grammar and sandhi rules from files."""
-        grammar_rules_file = os.path.join(self.data_dir, 'grammar_rules.json')
-        sandhi_rules_file = os.path.join(self.data_dir, 'sandhi_rules.json')
-        
-        try:
-            if os.path.exists(grammar_rules_file):
-                with open(grammar_rules_file, 'r') as f:
-                    self.grammar_rules = json.load(f)
-            
-            if os.path.exists(sandhi_rules_file):
-                with open(sandhi_rules_file, 'r') as f:
-                    self.sandhi_rules = json.load(f)
-                    
-            Logger.info(f"SanskritNLP: Loaded {len(self.grammar_rules)} grammar rules and {len(self.sandhi_rules)} sandhi rules")
-        except (json.JSONDecodeError, OSError) as e:
-            Logger.error(f"SanskritNLP: Failed to load rules: {e}")
-    
-    def _save_rules(self):
-        """Save grammar and sandhi rules to files."""
-        grammar_rules_file = os.path.join(self.data_dir, 'grammar_rules.json')
-        sandhi_rules_file = os.path.join(self.data_dir, 'sandhi_rules.json')
-        
-        try:
-            with open(grammar_rules_file, 'w') as f:
-                json.dump(self.grammar_rules, f, indent=2)
-            
-            with open(sandhi_rules_file, 'w') as f:
-                json.dump(self.sandhi_rules, f, indent=2)
+            if os.path.exists(self.rules_path):
+                with open(self.rules_path, 'r', encoding='utf-8') as f:
+                    return json.load(f)
+            else:
+                # Create default rules structure
+                default_rules = {
+                    "sandhi": {},
+                    "vibhakti": {},
+                    "noun_declensions": {},
+                    "verb_conjugations": {},
+                    "custom_rules": {}
+                }
                 
-            Logger.info(f"SanskritNLP: Saved {len(self.grammar_rules)} grammar rules and {len(self.sandhi_rules)} sandhi rules")
+                # Write default rules to file
+                with open(self.rules_path, 'w', encoding='utf-8') as f:
+                    json.dump(default_rules, f, indent=2)
+                
+                return default_rules
+        except Exception as e:
+            Logger.error(f"SanskritNLP: Failed to load rules: {e}")
+            return {
+                "sandhi": {},
+                "vibhakti": {},
+                "noun_declensions": {},
+                "verb_conjugations": {},
+                "custom_rules": {}
+            }
+    
+    def _save_rules(self) -> bool:
+        """
+        Save grammar rules to file.
+        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            with open(self.rules_path, 'w', encoding='utf-8') as f:
+                json.dump(self.rules, f, indent=2, ensure_ascii=False)
             return True
-        except OSError as e:
+        except Exception as e:
             Logger.error(f"SanskritNLP: Failed to save rules: {e}")
             return False
     
-    def transliterate(self, text, scheme_from='iast', scheme_to='devanagari'):
+    def transliterate(self, text: str, to_script: str = 'devanagari') -> str:
         """
-        Transliterate text between different writing systems.
+        Transliterate text between Latin (IAST) and Devanagari.
         
         Args:
-            text (str): Text to transliterate
-            scheme_from (str): Source scheme ('iast', 'hk', 'slp1', 'devanagari')
-            scheme_to (str): Target scheme ('iast', 'hk', 'slp1', 'devanagari')
+            text (str): The text to transliterate
+            to_script (str): Target script ('devanagari' or 'latin')
             
         Returns:
-            dict: Result with 'success' and 'text' keys
+            str: Transliterated text
         """
-        if not text:
-            return {'success': False, 'error': 'No text provided'}
+        # Mapping from Latin (IAST) to Devanagari
+        iast_to_devanagari = {
+            'a': 'अ', 'ā': 'आ', 'i': 'इ', 'ī': 'ई', 'u': 'उ', 'ū': 'ऊ',
+            'e': 'ए', 'ai': 'ऐ', 'o': 'ओ', 'au': 'औ',
+            'ṛ': 'ऋ', 'ṝ': 'ॠ', 'ḷ': 'ऌ', 'ḹ': 'ॡ',
+            'k': 'क्', 'kh': 'ख्', 'g': 'ग्', 'gh': 'घ्', 'ṅ': 'ङ्',
+            'c': 'च्', 'ch': 'छ्', 'j': 'ज्', 'jh': 'झ्', 'ñ': 'ञ्',
+            'ṭ': 'ट्', 'ṭh': 'ठ्', 'ḍ': 'ड्', 'ḍh': 'ढ्', 'ṇ': 'ण्',
+            't': 'त्', 'th': 'थ्', 'd': 'द्', 'dh': 'ध्', 'n': 'न्',
+            'p': 'प्', 'ph': 'फ्', 'b': 'ब्', 'bh': 'भ्', 'm': 'म्',
+            'y': 'य्', 'r': 'र्', 'l': 'ल्', 'v': 'व्',
+            'ś': 'श्', 'ṣ': 'ष्', 's': 'स्', 'h': 'ह्',
+            'ṃ': 'ं', 'ḥ': 'ः', '\'': 'ऽ',
+            ' ': ' ', '.': '।', ',': ',', '\n': '\n'
+        }
         
-        # Check supported schemes
-        supported_schemes = ['iast', 'hk', 'devanagari']
-        if scheme_from not in supported_schemes:
-            return {'success': False, 'error': f'Unsupported source scheme: {scheme_from}'}
+        # Mapping from Devanagari to Latin (IAST)
+        # This is simplified and will need improvement for a real application
+        devanagari_to_iast = {v: k for k, v in iast_to_devanagari.items() if len(k) == 1}
+        devanagari_to_iast.update({
+            'अ': 'a', 'आ': 'ā', 'इ': 'i', 'ई': 'ī', 'उ': 'u', 'ऊ': 'ū', 
+            'ए': 'e', 'ऐ': 'ai', 'ओ': 'o', 'औ': 'au',
+            'ऋ': 'ṛ', 'ॠ': 'ṝ', 'ऌ': 'ḷ', 'ॡ': 'ḹ',
+            'क': 'ka', 'ख': 'kha', 'ग': 'ga', 'घ': 'gha', 'ङ': 'ṅa',
+            'च': 'ca', 'छ': 'cha', 'ज': 'ja', 'झ': 'jha', 'ञ': 'ña',
+            'ट': 'ṭa', 'ठ': 'ṭha', 'ड': 'ḍa', 'ढ': 'ḍha', 'ण': 'ṇa',
+            'त': 'ta', 'थ': 'tha', 'द': 'da', 'ध': 'dha', 'न': 'na',
+            'प': 'pa', 'फ': 'pha', 'ब': 'ba', 'भ': 'bha', 'म': 'ma',
+            'य': 'ya', 'र': 'ra', 'ल': 'la', 'व': 'va',
+            'श': 'śa', 'ष': 'ṣa', 'स': 'sa', 'ह': 'ha',
+            'ं': 'ṃ', 'ः': 'ḥ', 'ऽ': '\'',
+            ' ': ' ', '।': '.', ',': ',', '\n': '\n'
+        })
         
-        if scheme_to not in supported_schemes:
-            return {'success': False, 'error': f'Unsupported target scheme: {scheme_to}'}
+        result = ""
         
-        # If same scheme, return the text unchanged
-        if scheme_from == scheme_to:
-            return {'success': True, 'text': text}
-        
-        # Convert to IAST first (as intermediary)
-        iast_text = text
-        if scheme_from == 'hk':
-            iast_text = self._convert_with_map(text, self.transliteration_maps['hk_to_iast'])
-        elif scheme_from == 'devanagari':
-            iast_text = self._convert_with_map(text, self.transliteration_maps['devanagari_to_iast'])
-        
-        # Convert from IAST to target scheme
-        result_text = iast_text
-        if scheme_to == 'hk':
-            result_text = self._convert_with_map(iast_text, self.transliteration_maps['iast_to_hk'])
-        elif scheme_to == 'devanagari':
-            result_text = self._convert_with_map(iast_text, self.transliteration_maps['iast_to_devanagari'])
-        
-        return {'success': True, 'text': result_text}
-    
-    def _convert_with_map(self, text, conversion_map):
-        """Convert text using a conversion map."""
-        # Sort keys by length in descending order to avoid partial matches
-        sorted_keys = sorted(conversion_map.keys(), key=len, reverse=True)
-        
-        result = text
-        for key in sorted_keys:
-            result = result.replace(key, conversion_map[key])
+        if to_script == 'devanagari':
+            # Latin to Devanagari
+            i = 0
+            while i < len(text):
+                # Check for two-character matches first
+                if i < len(text) - 1 and text[i:i+2] in iast_to_devanagari:
+                    # Get the Devanagari equivalent
+                    devanagari_char = iast_to_devanagari[text[i:i+2]]
+                    # Add to result
+                    result += devanagari_char
+                    # Skip the next character as it's part of the current mapping
+                    i += 2
+                # Then check for single-character matches
+                elif text[i] in iast_to_devanagari:
+                    # Get the Devanagari equivalent
+                    devanagari_char = iast_to_devanagari[text[i]]
+                    # Add to result
+                    result += devanagari_char
+                    i += 1
+                else:
+                    # Character not in mapping, just add it as is
+                    result += text[i]
+                    i += 1
+            
+            # Process the result for correct Devanagari rendering
+            # Replace implicit 'a' vowels
+            result = result.replace('्अ', '')
+            
+            # Add inherent 'a' vowel to consonants not followed by vowel or virama
+            vowel_markers = ['ा', 'ि', 'ी', 'ु', 'ू', 'े', 'ै', 'ो', 'ौ', 'ृ', 'ॄ', 'ॢ', 'ॣ', '्']
+            chars = list(result)
+            i = 0
+            while i < len(chars):
+                if chars[i].endswith('्') and i < len(chars) - 1 and chars[i+1] not in vowel_markers:
+                    chars[i] = chars[i][:-1]  # Remove virama
+                i += 1
+            
+            result = ''.join(chars)
+            
+        else:
+            # Devanagari to Latin
+            # This is a simplified conversion that needs improvement
+            for char in text:
+                if char in devanagari_to_iast:
+                    result += devanagari_to_iast[char]
+                else:
+                    result += char
         
         return result
     
-    def learn_grammar_rule(self, instruction):
-        """
-        Learn a new grammar rule from an instruction.
-        
-        Args:
-            instruction (str): Natural language instruction describing the rule
-            
-        Returns:
-            dict: Result with 'success', 'rule', and possibly 'error' keys
-        """
-        if not instruction:
-            return {'success': False, 'error': 'No instruction provided'}
-        
-        # Simplified rule extraction (placeholder)
-        # In a real system, this would use NLP to extract rule details
-        # For example, finding patterns like "add a to b to form c"
-        
-        try:
-            # Simple pattern matching for demonstration
-            rule = {
-                'id': len(self.grammar_rules) + 1,
-                'description': instruction,
-                'created_at': self._get_current_timestamp()
-            }
-            
-            # Try to extract pattern and replacement
-            pattern_match = re.search(r'when\s+(.+?)\s+becomes\s+(.+)', instruction, re.IGNORECASE)
-            if pattern_match:
-                rule['pattern'] = pattern_match.group(1).strip()
-                rule['replacement'] = pattern_match.group(2).strip()
-            
-            # Add rule to collection
-            self.grammar_rules.append(rule)
-            
-            # Save rules
-            self._save_rules()
-            
-            return {'success': True, 'rule': rule}
-        
-        except Exception as e:
-            Logger.error(f"SanskritNLP: Error learning grammar rule: {e}")
-            return {'success': False, 'error': str(e)}
-    
-    def tokenize(self, text):
+    def tokenize(self, text: str) -> List[str]:
         """
         Tokenize Sanskrit text into words.
         
@@ -247,84 +194,205 @@ class SanskritNLP:
             text (str): Sanskrit text to tokenize
             
         Returns:
-            dict: Result with 'success', 'tokens', and possibly 'error' keys
+            List[str]: List of tokens (words)
         """
-        if not text:
-            return {'success': False, 'error': 'No text provided'}
+        # Basic whitespace and punctuation-based tokenization
+        # For a real application, this would need to be much more sophisticated
+        text = text.replace('।', ' । ')
+        text = text.replace(',', ' , ')
+        text = text.replace('.', ' . ')
+        text = text.replace('!', ' ! ')
+        text = text.replace('?', ' ? ')
         
-        try:
-            # Simple tokenization (placeholder)
-            # In a real system, this would use proper Sanskrit tokenization rules
-            # For now, we'll use spaces and punctuation
-            tokens = re.findall(r'\b\w+\b', text)
-            
-            return {'success': True, 'tokens': tokens}
+        # Split by whitespace
+        tokens = text.split()
         
-        except Exception as e:
-            Logger.error(f"SanskritNLP: Error tokenizing text: {e}")
-            return {'success': False, 'error': str(e)}
+        # Filter out empty tokens
+        tokens = [token for token in tokens if token.strip()]
+        
+        return tokens
     
-    def analyze_sandhi(self, text):
+    def analyze_sandhi(self, compound: str) -> List[Dict[str, str]]:
         """
-        Analyze sandhi (word combinations) in Sanskrit text.
+        Analyze Sanskrit sandhi (euphonic combination) in a compound word.
         
         Args:
-            text (str): Sanskrit text to analyze
+            compound (str): The compound word to analyze
             
         Returns:
-            dict: Result with 'success', 'analysis', and possibly 'error' keys
+            List[Dict[str, str]]: List of possible sandhi analyses
         """
-        if not text:
-            return {'success': False, 'error': 'No text provided'}
+        # This is a placeholder implementation
+        # A real implementation would use rule-based or ML-based analysis
         
-        try:
-            # Simple sandhi analysis (placeholder)
-            # In a real system, this would apply proper Sanskrit sandhi rules
+        # Check if we have this compound in our rules
+        if compound in self.rules["sandhi"]:
+            return self.rules["sandhi"][compound]
+        
+        # Basic analysis based on common patterns
+        # This is very rudimentary and would need significant improvement
+        results = []
+        
+        # Check for visarga sandhi
+        visarga_match = re.search(r'([aāiīuūeaioauṛṝḷḹ])([ḥ]?)([aāiīuūeaioauṛṝḷḹ])', compound)
+        if visarga_match:
+            groups = visarga_match.groups()
+            first_part = compound[:visarga_match.start()]
+            second_part = compound[visarga_match.end():]
             
-            # Tokenize first
-            tokens_result = self.tokenize(text)
-            if not tokens_result['success']:
-                return tokens_result
-            
-            tokens = tokens_result['tokens']
-            
-            # For now, just look for potential sandhi combinations based on vowel sequences
-            # This is a very simplified approach
-            analysis = []
-            for i in range(len(tokens) - 1):
-                if tokens[i].endswith(('a', 'i', 'u')) and tokens[i+1].startswith(('a', 'i', 'u')):
-                    analysis.append({
-                        'word1': tokens[i],
-                        'word2': tokens[i+1],
-                        'combined': tokens[i] + tokens[i+1],
-                        'type': 'vowel_sandhi'
+            # Visarga sandhi: aḥ + a = o
+            if groups[0] == 'a' and (not groups[1] or groups[1] == 'ḥ') and groups[2] == 'a':
+                results.append({
+                    "type": "visarga_sandhi",
+                    "components": [f"{first_part}aḥ", f"{second_part}"],
+                    "rule": "aḥ + a -> o",
+                    "confidence": 0.8
+                })
+        
+        # If no results found, return a generic analysis
+        if not results:
+            # Try to find potential word boundaries
+            vowels = 'aāiīuūeaioauṛṝḷḹ'
+            for i in range(1, len(compound)):
+                if compound[i] in vowels and compound[i-1] in vowels:
+                    results.append({
+                        "type": "generic_sandhi",
+                        "components": [compound[:i], compound[i:]],
+                        "rule": "Potential vowel sandhi",
+                        "confidence": 0.5
                     })
+        
+        # If still no results, offer a simple split
+        if not results:
+            mid = len(compound) // 2
+            results.append({
+                "type": "unknown",
+                "components": [compound[:mid], compound[mid:]],
+                "rule": "Arbitrary split (unknown sandhi rule)",
+                "confidence": 0.1
+            })
+        
+        return results
+    
+    def add_custom_rule(self, rule_type: str, name: str, pattern: str, 
+                      explanation: str, examples: List[str]) -> bool:
+        """
+        Add a custom grammar rule.
+        
+        Args:
+            rule_type (str): Type of rule ('sandhi', 'vibhakti', etc.)
+            name (str): Name of the rule
+            pattern (str): Pattern or formula of the rule
+            explanation (str): Explanation of the rule
+            examples (List[str]): Examples demonstrating the rule
             
-            return {'success': True, 'analysis': analysis}
-        
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Create rule entry
+            rule = {
+                "name": name,
+                "pattern": pattern,
+                "explanation": explanation,
+                "examples": examples,
+                "created": datetime.now().isoformat()
+            }
+            
+            # Add to appropriate section
+            if rule_type not in self.rules:
+                self.rules[rule_type] = {}
+            
+            if "custom_rules" not in self.rules[rule_type]:
+                self.rules[rule_type]["custom_rules"] = {}
+            
+            self.rules[rule_type]["custom_rules"][name] = rule
+            
+            # Save to file
+            return self._save_rules()
+            
         except Exception as e:
-            Logger.error(f"SanskritNLP: Error analyzing sandhi: {e}")
-            return {'success': False, 'error': str(e)}
+            Logger.error(f"SanskritNLP: Failed to add custom rule: {e}")
+            return False
     
-    def get_grammar_rules(self):
+    def get_grammar_rules(self, rule_type: str = None) -> Dict:
         """
-        Get all grammar rules.
+        Get grammar rules of a specific type or all rules.
         
+        Args:
+            rule_type (str): Type of rules to get (None for all)
+            
         Returns:
-            list: List of grammar rules
+            Dict: Dictionary of grammar rules
         """
-        return self.grammar_rules
+        if rule_type:
+            return self.rules.get(rule_type, {})
+        return self.rules
     
-    def get_sandhi_rules(self):
+    def get_noun_declension(self, noun: str, gender: str = None) -> Dict:
         """
-        Get all sandhi rules.
+        Get the declension table for a Sanskrit noun.
         
+        Args:
+            noun (str): The noun to decline
+            gender (str): Gender of the noun ('m', 'f', 'n')
+            
         Returns:
-            list: List of sandhi rules
+            Dict: Declension table for the noun
         """
-        return self.sandhi_rules
-    
-    def _get_current_timestamp(self):
-        """Get current timestamp as a string."""
-        from datetime import datetime
-        return datetime.now().isoformat()
+        # Check if we have this noun in our rules
+        if noun in self.rules.get("noun_declensions", {}):
+            return self.rules["noun_declensions"][noun]
+        
+        # This is a placeholder for a more sophisticated implementation
+        # A real implementation would use proper morphological analysis
+        
+        # Create an empty declension table
+        declension = {
+            "word": noun,
+            "gender": gender or "unknown",
+            "cases": {
+                "nominative": {
+                    "singular": f"{noun}ḥ",
+                    "dual": f"{noun}au",
+                    "plural": f"{noun}āḥ"
+                },
+                "accusative": {
+                    "singular": f"{noun}am",
+                    "dual": f"{noun}au",
+                    "plural": f"{noun}ān"
+                },
+                "instrumental": {
+                    "singular": f"{noun}ena",
+                    "dual": f"{noun}ābhyām",
+                    "plural": f"{noun}aiḥ"
+                },
+                "dative": {
+                    "singular": f"{noun}āya",
+                    "dual": f"{noun}ābhyām",
+                    "plural": f"{noun}ebhyaḥ"
+                },
+                "ablative": {
+                    "singular": f"{noun}āt",
+                    "dual": f"{noun}ābhyām",
+                    "plural": f"{noun}ebhyaḥ"
+                },
+                "genitive": {
+                    "singular": f"{noun}asya",
+                    "dual": f"{noun}ayoḥ",
+                    "plural": f"{noun}ānām"
+                },
+                "locative": {
+                    "singular": f"{noun}e",
+                    "dual": f"{noun}ayoḥ",
+                    "plural": f"{noun}eṣu"
+                },
+                "vocative": {
+                    "singular": f"{noun}a",
+                    "dual": f"{noun}au",
+                    "plural": f"{noun}āḥ"
+                }
+            }
+        }
+        
+        return declension

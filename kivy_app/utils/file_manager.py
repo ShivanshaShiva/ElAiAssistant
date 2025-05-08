@@ -1,284 +1,326 @@
 """
 File Manager Module.
-This module handles file selection and management operations.
+This module is responsible for handling file operations such as opening, saving, and browsing files.
 """
 
 import os
-import shutil
 import tempfile
+import shutil
+from datetime import datetime
+from typing import Callable, List, Optional, Union
+
 from kivy.app import App
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.filechooser import FileChooserListView
 from kivy.uix.button import Button
-from kivy.uix.label import Label
+from kivy.uix.filechooser import FileChooserListView, FileChooserIconView
 from kivy.uix.popup import Popup
+from kivy.uix.label import Label
 from kivy.metrics import dp
 from kivy.logger import Logger
 
-class FileSelector(BoxLayout):
-    """A file selector widget with file browser and action buttons."""
-    
-    def __init__(self, title="Select a file", filters=None, start_dir=None, 
-                 on_selection=None, on_cancel=None, **kwargs):
-        """
-        Initialize the file selector.
-        
-        Args:
-            title (str): Title for the file selector popup
-            filters (list): List of file filters (e.g., ['*.txt', '*.py'])
-            start_dir (str): Starting directory path
-            on_selection (callable): Callback when file is selected
-            on_cancel (callable): Callback when selection is cancelled
-        """
-        super(FileSelector, self).__init__(**kwargs)
-        
-        self.orientation = 'vertical'
-        self.padding = dp(10)
-        self.spacing = dp(5)
-        
-        # Set properties
-        self.title = title
-        self.on_selection = on_selection
-        self.on_cancel = on_cancel
-        
-        # Get start directory
-        if not start_dir or not os.path.exists(start_dir):
-            start_dir = os.path.expanduser('~')
-        
-        # Create file chooser
-        self.file_chooser = FileChooserListView(
-            path=start_dir,
-            filters=filters,
-            dirselect=False
-        )
-        
-        # Create buttons
-        button_layout = BoxLayout(
-            size_hint=(1, None),
-            height=dp(50),
-            spacing=dp(10)
-        )
-        
-        self.cancel_button = Button(
-            text='Cancel',
-            size_hint=(0.5, 1)
-        )
-        
-        self.select_button = Button(
-            text='Select',
-            size_hint=(0.5, 1),
-            disabled=True
-        )
-        
-        # Bind events
-        self.file_chooser.bind(selection=self._on_file_chooser_selection)
-        self.cancel_button.bind(on_press=self._on_cancel)
-        self.select_button.bind(on_press=self._on_select)
-        
-        # Add widgets
-        button_layout.add_widget(self.cancel_button)
-        button_layout.add_widget(self.select_button)
-        
-        self.add_widget(self.file_chooser)
-        self.add_widget(button_layout)
-    
-    def _on_file_chooser_selection(self, instance, selection):
-        """Handle file selection change."""
-        self.select_button.disabled = not bool(selection)
-    
-    def _on_cancel(self, instance):
-        """Handle cancel button press."""
-        if self.on_cancel:
-            self.on_cancel()
-    
-    def _on_select(self, instance):
-        """Handle select button press."""
-        selection = self.file_chooser.selection
-        if selection and self.on_selection:
-            self.on_selection(selection[0])
-
 
 class FileManager:
-    """Manages file operations and selection dialogs."""
+    """Manages file operations for the application."""
     
     def __init__(self):
         """Initialize the file manager."""
-        self.temp_dir = tempfile.mkdtemp(prefix='elai_')
-        Logger.info(f"FileManager: Created temp directory at {self.temp_dir}")
+        self.default_dir = self._get_default_directory()
+        self.temp_dir = self._get_temp_directory()
+        
+        # Create temp directory if it doesn't exist
+        if not os.path.exists(self.temp_dir):
+            os.makedirs(self.temp_dir, exist_ok=True)
     
-    def select_file(self, title="Select a file", filters=None, start_dir=None, 
-                    on_selection=None, on_cancel=None):
+    def _get_default_directory(self) -> str:
         """
-        Show a file selection dialog.
+        Get the default directory for file operations.
+        
+        Returns:
+            str: Path to the default directory
+        """
+        # Try to use Downloads directory if on Android
+        try:
+            from android.storage import primary_external_storage_path
+            downloads_dir = os.path.join(primary_external_storage_path(), 'Download')
+            if os.path.exists(downloads_dir):
+                return downloads_dir
+        except (ImportError, Exception):
+            pass
+        
+        # Fallback to the app's directory for non-Android platforms
+        return os.path.dirname(os.path.abspath(__file__))
+    
+    def _get_temp_directory(self) -> str:
+        """
+        Get the temporary directory for file operations.
+        
+        Returns:
+            str: Path to the temp directory
+        """
+        try:
+            # Try to use app-specific directory on Android
+            from android.storage import app_storage_path
+            return os.path.join(app_storage_path(), 'temp')
+        except (ImportError, Exception):
+            # Fallback to system temp directory for non-Android platforms
+            return os.path.join(tempfile.gettempdir(), 'elai_assistant')
+    
+    def select_file(self, 
+                   title: str = "Select File", 
+                   filters: List[str] = None, 
+                   initial_path: str = None,
+                   on_selection: Callable[[Optional[str]], None] = None,
+                   mode: str = 'open') -> None:
+        """
+        Open a file selection dialog.
         
         Args:
-            title (str): Title for the file selector popup
-            filters (list): List of file filters (e.g., ['*.txt', '*.py'])
-            start_dir (str): Starting directory path
-            on_selection (callable): Callback when file is selected
-            on_cancel (callable): Callback when selection is cancelled
+            title (str): Title of the dialog
+            filters (List[str]): List of file extensions to filter (e.g., ['*.txt', '*.py'])
+            initial_path (str): Initial directory to open
+            on_selection (Callable): Callback function to call with selected file path
+            mode (str): 'open' or 'save'
         """
-        content = FileSelector(
-            title=title,
+        if not initial_path:
+            initial_path = self.default_dir
+        
+        # Create file chooser dialog
+        content = BoxLayout(orientation='vertical', spacing=dp(10), padding=dp(10))
+        
+        file_chooser = FileChooserListView(
+            path=initial_path,
             filters=filters,
-            start_dir=start_dir,
-            on_selection=self._on_file_selected,
-            on_cancel=self._on_selection_cancel
+            dirselect=(mode == 'dir')
         )
         
-        # Store callbacks
-        self._on_file_selected_callback = on_selection
-        self._on_selection_cancel_callback = on_cancel
+        buttons = BoxLayout(size_hint_y=None, height=dp(50), spacing=dp(10))
         
-        # Create popup
-        self.popup = Popup(
-            title=title,
-            content=content,
-            size_hint=(0.9, 0.9)
-        )
+        cancel_btn = Button(text='Cancel')
+        select_btn = Button(text='Select' if mode == 'open' else 'Save')
         
-        # Show popup
-        self.popup.open()
+        # Bind events
+        file_chooser.bind(on_submit=lambda instance, selection, touch: self._on_file_selected(selection[0], on_selection) if selection else None)
+        cancel_btn.bind(on_release=lambda instance: popup.dismiss())
+        select_btn.bind(on_release=lambda instance: self._on_file_selected(file_chooser.selection[0], on_selection, popup) if file_chooser.selection else None)
+        
+        buttons.add_widget(cancel_btn)
+        buttons.add_widget(select_btn)
+        
+        content.add_widget(Label(text=title, size_hint_y=None, height=dp(30)))
+        content.add_widget(file_chooser)
+        content.add_widget(buttons)
+        
+        # Create and open popup
+        popup = Popup(title=title, content=content, size_hint=(0.9, 0.9))
+        popup.open()
     
-    def _on_file_selected(self, file_path):
-        """Handle file selection from popup."""
-        Logger.info(f"FileManager: Selected file {file_path}")
+    def _on_file_selected(self, path: str, callback: Callable[[str], None], popup: Popup = None) -> None:
+        """
+        Handle file selection.
         
-        # Dismiss popup
-        if hasattr(self, 'popup') and self.popup:
-            self.popup.dismiss()
-            self.popup = None
+        Args:
+            path (str): Selected file path
+            callback (Callable): Callback function to call with selected file path
+            popup (Popup): Popup to dismiss
+        """
+        if popup:
+            popup.dismiss()
         
-        # Call user callback
-        if hasattr(self, '_on_file_selected_callback') and self._on_file_selected_callback:
-            self._on_file_selected_callback(file_path)
+        if callback:
+            callback(path)
     
-    def _on_selection_cancel(self):
-        """Handle selection cancellation."""
-        Logger.info("FileManager: File selection cancelled")
-        
-        # Dismiss popup
-        if hasattr(self, 'popup') and self.popup:
-            self.popup.dismiss()
-            self.popup = None
-        
-        # Call user callback
-        if hasattr(self, '_on_selection_cancel_callback') and self._on_selection_cancel_callback:
-            self._on_selection_cancel_callback()
-    
-    def create_temp_file(self, content="", prefix="file_", suffix=".txt"):
+    def create_temp_file(self, content: str, prefix: str = "temp_", suffix: str = ".txt") -> Optional[str]:
         """
         Create a temporary file with the given content.
         
         Args:
             content (str): Content to write to the file
-            prefix (str): Prefix for the temporary file name
-            suffix (str): Suffix (extension) for the temporary file name
+            prefix (str): Prefix for the temp filename
+            suffix (str): Suffix for the temp filename (file extension)
             
         Returns:
-            str: Path to the created temporary file
+            str: Path to the created temporary file or None if failed
         """
         try:
-            # Create a temporary file
-            fd, temp_file_path = tempfile.mkstemp(
-                suffix=suffix,
-                prefix=prefix,
-                dir=self.temp_dir,
-                text=True
-            )
+            timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+            filename = f"{prefix}{timestamp}{suffix}"
+            filepath = os.path.join(self.temp_dir, filename)
             
-            # Write content
-            with os.fdopen(fd, 'w') as f:
+            # Ensure the directory exists
+            os.makedirs(os.path.dirname(filepath), exist_ok=True)
+            
+            # Write content to file
+            with open(filepath, 'w', encoding='utf-8') as f:
                 f.write(content)
-            
-            Logger.info(f"FileManager: Created temp file at {temp_file_path}")
-            return temp_file_path
-        
+                
+            return filepath
         except Exception as e:
-            Logger.error(f"FileManager: Error creating temp file: {e}")
+            Logger.error(f"FileManager: Failed to create temp file: {e}")
             return None
     
-    def cleanup_temp_files(self):
-        """Clean up temporary files and directory."""
+    def read_file(self, filepath: str) -> Optional[str]:
+        """
+        Read and return the content of a file.
+        
+        Args:
+            filepath (str): Path to the file to read
+            
+        Returns:
+            str: Content of the file or None if failed
+        """
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                return f.read()
+        except Exception as e:
+            Logger.error(f"FileManager: Failed to read file {filepath}: {e}")
+            return None
+    
+    def save_file(self, filepath: str, content: str) -> bool:
+        """
+        Save content to a file.
+        
+        Args:
+            filepath (str): Path to save the file
+            content (str): Content to write to the file
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            # Ensure the directory exists
+            directory = os.path.dirname(filepath)
+            if directory and not os.path.exists(directory):
+                os.makedirs(directory, exist_ok=True)
+                
+            # Write content to file
+            with open(filepath, 'w', encoding='utf-8') as f:
+                f.write(content)
+                
+            return True
+        except Exception as e:
+            Logger.error(f"FileManager: Failed to save file {filepath}: {e}")
+            return False
+    
+    def list_directory(self, dirpath: str, filter_pattern: str = None) -> List[str]:
+        """
+        List files in a directory, optionally filtered by a pattern.
+        
+        Args:
+            dirpath (str): Directory path to list
+            filter_pattern (str): Optional glob pattern to filter files
+            
+        Returns:
+            List[str]: List of file paths in the directory
+        """
+        try:
+            import glob
+            
+            if filter_pattern:
+                return glob.glob(os.path.join(dirpath, filter_pattern))
+            else:
+                return [os.path.join(dirpath, f) for f in os.listdir(dirpath) 
+                        if not f.startswith('.')]  # Skip hidden files
+        except Exception as e:
+            Logger.error(f"FileManager: Failed to list directory {dirpath}: {e}")
+            return []
+    
+    def delete_file(self, filepath: str) -> bool:
+        """
+        Delete a file.
+        
+        Args:
+            filepath (str): Path to the file to delete
+            
+        Returns:
+            bool: True if successful, False otherwise
+        """
+        try:
+            if os.path.exists(filepath):
+                if os.path.isdir(filepath):
+                    shutil.rmtree(filepath)
+                else:
+                    os.remove(filepath)
+                return True
+            return False
+        except Exception as e:
+            Logger.error(f"FileManager: Failed to delete file {filepath}: {e}")
+            return False
+    
+    def get_documents_dir(self) -> str:
+        """
+        Get the documents directory on the device.
+        
+        Returns:
+            str: Path to the documents directory
+        """
+        try:
+            # Try to use Android-specific storage
+            from android.storage import primary_external_storage_path
+            return os.path.join(primary_external_storage_path(), 'Documents')
+        except (ImportError, Exception):
+            # Fallback for non-Android platforms
+            return os.path.expanduser("~/Documents")
+    
+    def get_downloads_dir(self) -> str:
+        """
+        Get the downloads directory on the device.
+        
+        Returns:
+            str: Path to the downloads directory
+        """
+        try:
+            # Try to use Android-specific storage
+            from android.storage import primary_external_storage_path
+            return os.path.join(primary_external_storage_path(), 'Download')
+        except (ImportError, Exception):
+            # Fallback for non-Android platforms
+            return os.path.expanduser("~/Downloads")
+    
+    def get_app_dir(self) -> str:
+        """
+        Get the application's storage directory.
+        
+        Returns:
+            str: Path to the app's storage directory
+        """
+        try:
+            # Try to use Android-specific app storage
+            from android.storage import app_storage_path
+            return app_storage_path()
+        except (ImportError, Exception):
+            # Fallback for non-Android platforms
+            app = App.get_running_app()
+            if app:
+                return app.user_data_dir
+            return os.path.dirname(os.path.abspath(__file__))
+    
+    def clean_temp_files(self, days_old: int = 7) -> int:
+        """
+        Clean temporary files older than the specified number of days.
+        
+        Args:
+            days_old (int): Files older than this many days will be deleted
+            
+        Returns:
+            int: Number of files deleted
+        """
+        import time
+        from datetime import datetime, timedelta
+        
+        cutoff_time = time.time() - (days_old * 86400)  # 86400 seconds in a day
+        count = 0
+        
         try:
             if os.path.exists(self.temp_dir):
-                shutil.rmtree(self.temp_dir)
-                Logger.info(f"FileManager: Removed temp directory {self.temp_dir}")
+                for filename in os.listdir(self.temp_dir):
+                    filepath = os.path.join(self.temp_dir, filename)
+                    if os.path.isfile(filepath):
+                        mtime = os.path.getmtime(filepath)
+                        if mtime < cutoff_time:
+                            os.remove(filepath)
+                            count += 1
+            
+            return count
         except Exception as e:
-            Logger.error(f"FileManager: Error cleaning up temp directory: {e}")
-    
-    def get_file_extension(self, file_path):
-        """
-        Get the extension of a file.
-        
-        Args:
-            file_path (str): Path to the file
-            
-        Returns:
-            str: File extension (with leading dot) or empty string
-        """
-        return os.path.splitext(file_path)[1]
-    
-    def copy_file(self, source_path, destination_path):
-        """
-        Copy a file from source to destination.
-        
-        Args:
-            source_path (str): Path to the source file
-            destination_path (str): Path to the destination
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            shutil.copy2(source_path, destination_path)
-            Logger.info(f"FileManager: Copied {source_path} to {destination_path}")
-            return True
-        except Exception as e:
-            Logger.error(f"FileManager: Error copying file: {e}")
-            return False
-    
-    def read_file(self, file_path):
-        """
-        Read the content of a file.
-        
-        Args:
-            file_path (str): Path to the file
-            
-        Returns:
-            str: File content or None if error
-        """
-        try:
-            with open(file_path, 'r') as f:
-                content = f.read()
-            return content
-        except Exception as e:
-            Logger.error(f"FileManager: Error reading file {file_path}: {e}")
-            return None
-    
-    def write_file(self, file_path, content):
-        """
-        Write content to a file.
-        
-        Args:
-            file_path (str): Path to the file
-            content (str): Content to write
-            
-        Returns:
-            bool: True if successful, False otherwise
-        """
-        try:
-            # Ensure directory exists
-            dir_path = os.path.dirname(file_path)
-            if dir_path and not os.path.exists(dir_path):
-                os.makedirs(dir_path)
-            
-            # Write content
-            with open(file_path, 'w') as f:
-                f.write(content)
-            
-            Logger.info(f"FileManager: Wrote content to {file_path}")
-            return True
-        except Exception as e:
-            Logger.error(f"FileManager: Error writing to file {file_path}: {e}")
-            return False
+            Logger.error(f"FileManager: Failed to clean temp files: {e}")
+            return 0

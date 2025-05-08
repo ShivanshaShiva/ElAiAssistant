@@ -1,30 +1,28 @@
 """
 Code Generation Screen Module.
-This module contains the code generation screen.
+This screen provides code generation capabilities using AI models.
 """
 
 from kivy.app import App
 from kivy.uix.screenmanager import Screen
 from kivy.uix.boxlayout import BoxLayout
-from kivy.uix.button import Button
+from kivy.uix.gridlayout import GridLayout
+from kivy.uix.scrollview import ScrollView
 from kivy.uix.label import Label
 from kivy.uix.textinput import TextInput
+from kivy.uix.button import Button
 from kivy.uix.spinner import Spinner
 from kivy.metrics import dp
-from kivy.properties import ObjectProperty, StringProperty
-from kivy.clock import Clock
+from kivy.properties import StringProperty
 from kivy.logger import Logger
 
+from kivy_app.models.model_handler import ModelType
+
 class CodeGenerationScreen(Screen):
-    """Screen for AI code generation."""
-    
-    prompt_input = ObjectProperty(None)
-    code_output = ObjectProperty(None)
+    """Screen for code generation using AI models."""
     
     def on_enter(self, *args):
         """Actions to perform when screen is entered."""
-        app = App.get_running_app()
-        
         # Create content if not already created
         if not self.children:
             self.create_content()
@@ -32,179 +30,316 @@ class CodeGenerationScreen(Screen):
     def create_content(self):
         """Create the screen content."""
         # Main layout
-        layout = BoxLayout(orientation='vertical', padding=dp(20), spacing=dp(15))
+        main_layout = BoxLayout(
+            orientation='vertical',
+            padding=dp(20),
+            spacing=dp(15)
+        )
         
-        # Header
-        header = BoxLayout(size_hint=(1, 0.1), spacing=dp(10))
+        # Header with back button
+        header = BoxLayout(
+            size_hint=(1, 0.1),
+            spacing=dp(10)
+        )
+        
         back_button = Button(
             text='Back',
             size_hint=(0.2, 1),
             background_normal='',
             background_color=(0.3, 0.3, 0.3, 1)
         )
-        title_label = Label(
+        back_button.bind(on_press=self._on_back_pressed)
+        
+        title = Label(
             text='Code Generation',
             font_size=dp(24),
             bold=True,
             size_hint=(0.8, 1)
         )
         
-        back_button.bind(on_press=lambda x: self._go_back())
-        
         header.add_widget(back_button)
-        header.add_widget(title_label)
+        header.add_widget(title)
         
-        # Description
-        description = Label(
-            text='Enter a description of what you need, and AI will generate code for you.',
-            size_hint=(1, 0.1),
-            halign='left'
+        # Main content
+        content_layout = BoxLayout(
+            orientation='vertical',
+            size_hint=(1, 0.9),
+            spacing=dp(15)
         )
-        description.bind(size=description.setter('text_size'))
         
         # Model selection
-        model_layout = BoxLayout(size_hint=(1, 0.1), spacing=dp(10))
+        model_section = BoxLayout(
+            orientation='horizontal',
+            size_hint=(1, 0.08),
+            spacing=dp(10)
+        )
         
         model_label = Label(
             text='Model:',
-            size_hint=(0.3, 1)
+            size_hint=(0.15, 1)
         )
         
-        model_spinner = Spinner(
+        self.model_spinner = Spinner(
             text='ChatGPT',
             values=('ChatGPT', 'Gemma'),
-            size_hint=(0.7, 1)
+            size_hint=(0.35, 1)
         )
         
-        model_layout.add_widget(model_label)
-        model_layout.add_widget(model_spinner)
+        language_label = Label(
+            text='Language:',
+            size_hint=(0.15, 1)
+        )
         
-        # Prompt input
-        prompt_label = Label(
-            text='Description:',
-            size_hint=(1, 0.05),
+        self.language_spinner = Spinner(
+            text='Python',
+            values=('Python', 'JavaScript', 'Java', 'C++', 'Go', 'Rust', 'PHP', 'Swift', 'Kotlin', 'C#'),
+            size_hint=(0.35, 1)
+        )
+        
+        model_section.add_widget(model_label)
+        model_section.add_widget(self.model_spinner)
+        model_section.add_widget(language_label)
+        model_section.add_widget(self.language_spinner)
+        
+        # Prompt section
+        prompt_section = BoxLayout(
+            orientation='vertical',
+            size_hint=(1, 0.3),
+            spacing=dp(5)
+        )
+        
+        prompt_header = Label(
+            text='Prompt:',
+            size_hint=(1, 0.15),
             halign='left'
         )
-        prompt_label.bind(size=prompt_label.setter('text_size'))
+        prompt_header.bind(size=prompt_header.setter('text_size'))
         
+        # Prompt text input
         self.prompt_input = TextInput(
-            hint_text='Describe what code you need...',
-            multiline=True,
-            size_hint=(1, 0.2)
+            hint_text='Describe the code you want to generate (e.g., "Create a function to sort a list of dictionaries by a specific key")',
+            size_hint=(1, 0.85),
+            multiline=True
         )
         
+        prompt_section.add_widget(prompt_header)
+        prompt_section.add_widget(self.prompt_input)
+        
         # Action buttons
-        buttons_layout = BoxLayout(size_hint=(1, 0.1), spacing=dp(10))
+        button_section = BoxLayout(
+            size_hint=(1, 0.1),
+            spacing=dp(10)
+        )
         
         generate_button = Button(
             text='Generate Code',
-            size_hint=(0.7, 1),
+            size_hint=(0.5, 1),
             background_normal='',
-            background_color=(0.2, 0.6, 0.8, 1)
+            background_color=(0.2, 0.7, 0.3, 1)
         )
         
         clear_button = Button(
             text='Clear',
-            size_hint=(0.3, 1),
+            size_hint=(0.5, 1),
             background_normal='',
             background_color=(0.7, 0.3, 0.3, 1)
         )
         
-        generate_button.bind(on_press=lambda x: self._generate_code(model_spinner.text))
-        clear_button.bind(on_press=lambda x: self._clear_inputs())
+        # Bind buttons
+        generate_button.bind(on_press=self._on_generate_code)
+        clear_button.bind(on_press=self._on_clear)
         
-        buttons_layout.add_widget(generate_button)
-        buttons_layout.add_widget(clear_button)
+        button_section.add_widget(generate_button)
+        button_section.add_widget(clear_button)
         
-        # Code output
-        output_label = Label(
+        # Generated code section
+        code_section = BoxLayout(
+            orientation='vertical',
+            size_hint=(1, 0.42),
+            spacing=dp(5)
+        )
+        
+        code_header = Label(
             text='Generated Code:',
-            size_hint=(1, 0.05),
+            size_hint=(1, 0.1),
             halign='left'
         )
-        output_label.bind(size=output_label.setter('text_size'))
+        code_header.bind(size=code_header.setter('text_size'))
         
-        self.code_output = TextInput(
-            hint_text='Generated code will appear here...',
-            multiline=True,
-            readonly=True,
-            size_hint=(1, 0.3)
+        # Code output in a scrollview
+        code_scroll = ScrollView(
+            size_hint=(1, 0.8)
         )
         
-        # Add all elements to the main layout
-        layout.add_widget(header)
-        layout.add_widget(description)
-        layout.add_widget(model_layout)
-        layout.add_widget(prompt_label)
-        layout.add_widget(self.prompt_input)
-        layout.add_widget(buttons_layout)
-        layout.add_widget(output_label)
-        layout.add_widget(self.code_output)
+        self.code_output = TextInput(
+            readonly=True,
+            font_name='monospace',
+            size_hint=(1, None),
+            height=dp(400)
+        )
         
-        # Add to screen
-        self.add_widget(layout)
+        code_scroll.add_widget(self.code_output)
+        
+        # Action buttons for generated code
+        code_buttons = BoxLayout(
+            size_hint=(1, 0.1),
+            spacing=dp(10)
+        )
+        
+        copy_button = Button(
+            text='Copy to Clipboard',
+            size_hint=(0.5, 1)
+        )
+        
+        save_button = Button(
+            text='Save to File',
+            size_hint=(0.5, 1)
+        )
+        
+        # Bind buttons
+        copy_button.bind(on_press=self._on_copy_to_clipboard)
+        save_button.bind(on_press=self._on_save_to_file)
+        
+        code_buttons.add_widget(copy_button)
+        code_buttons.add_widget(save_button)
+        
+        code_section.add_widget(code_header)
+        code_section.add_widget(code_scroll)
+        code_section.add_widget(code_buttons)
+        
+        # Add sections to content layout
+        content_layout.add_widget(model_section)
+        content_layout.add_widget(prompt_section)
+        content_layout.add_widget(button_section)
+        content_layout.add_widget(code_section)
+        
+        # Add widgets to main layout
+        main_layout.add_widget(header)
+        main_layout.add_widget(content_layout)
+        
+        # Add main layout to screen
+        self.add_widget(main_layout)
     
-    def _go_back(self):
-        """Return to the home screen."""
+    def _on_back_pressed(self, instance):
+        """Handle back button press."""
         app = App.get_running_app()
         app.navigate_to('home')
     
-    def _generate_code(self, model_name):
-        """Generate code using the selected model."""
+    def _on_generate_code(self, instance):
+        """Handle generate code button press."""
         app = App.get_running_app()
-        prompt = self.prompt_input.text.strip()
         
+        prompt = self.prompt_input.text.strip()
         if not prompt:
-            app.notification_manager.warning('Please enter a description of what code you need')
+            app.notification_manager.warning("Please enter a prompt for code generation")
             return
         
-        # Select model type
+        # Get selected model and language
+        model_name = self.model_spinner.text
+        language = self.language_spinner.text
+        
+        # Map model name to ModelType
+        model_type = None
         if model_name == 'ChatGPT':
-            from kivy_app.models.model_handler import ModelType
             model_type = ModelType.CHATGPT
-        else:  # Gemma
-            from kivy_app.models.model_handler import ModelType
+        elif model_name == 'Gemma':
             model_type = ModelType.GEMMA
         
-        # Check if model is ready
-        status_info = app.model_handler.get_status(model_type)
-        if status_info.get('status') != 'ready':
-            app.notification_manager.error(f'Model {model_name} is not ready. Please check Settings.')
+        if not model_type:
+            app.notification_manager.error("Invalid model selected")
             return
         
-        # Show generating indicator
-        self.code_output.text = 'Generating code...'
+        # Build complete prompt with language
+        complete_prompt = f"Generate {language} code for: {prompt}\n\nPlease provide only the code with appropriate comments, no explanations."
         
-        # Enhance prompt for code generation
-        code_prompt = f"Generate code for: {prompt}\nPlease provide only the code without explanations."
+        # Show loading message
+        app.notification_manager.info(f"Generating code using {model_name}...")
+        self.code_output.text = "Generating code, please wait..."
         
-        # Use a background thread to avoid blocking the UI
-        def generate_code_thread():
-            try:
-                # Generate text
-                result = app.model_handler.generate_text(model_type, code_prompt)
-                
-                # Update UI in the main thread
-                def update_ui(dt):
-                    if result.get('success'):
-                        self.code_output.text = result.get('text', '')
-                    else:
-                        self.code_output.text = f"Error: {result.get('error', 'Unknown error')}"
-                        app.notification_manager.error(f"Code generation failed: {result.get('error', 'Unknown error')}")
-                
-                Clock.schedule_once(update_ui, 0)
+        # Generate code using the selected model
+        result = app.model_handler.generate_text(model_type, complete_prompt)
+        
+        if result.get('success', False):
+            generated_text = result.get('text', '')
             
-            except Exception as e:
-                def show_error(dt):
-                    self.code_output.text = f"Error: {str(e)}"
-                    app.notification_manager.error(f"Code generation failed: {str(e)}")
+            # Extract code block if present (assuming markdown format from AI)
+            import re
+            code_block_pattern = r'```(?:\w+)?\n([\s\S]+?)\n```'
+            code_blocks = re.findall(code_block_pattern, generated_text)
+            
+            if code_blocks:
+                # Use the first code block found
+                self.code_output.text = code_blocks[0].strip()
+            else:
+                # Use the full output if no code blocks found
+                self.code_output.text = generated_text.strip()
                 
-                Clock.schedule_once(show_error, 0)
-        
-        from threading import Thread
-        Thread(target=generate_code_thread).start()
+            app.notification_manager.success("Code generated successfully")
+        else:
+            error = result.get('error', 'Unknown error')
+            self.code_output.text = f"Error generating code: {error}"
+            app.notification_manager.error(f"Failed to generate code: {error}")
     
-    def _clear_inputs(self):
-        """Clear the prompt and output."""
-        self.prompt_input.text = ''
-        self.code_output.text = ''
+    def _on_clear(self, instance):
+        """Handle clear button press."""
+        self.prompt_input.text = ""
+        self.code_output.text = ""
+    
+    def _on_copy_to_clipboard(self, instance):
+        """Handle copy to clipboard button press."""
+        app = App.get_running_app()
+        
+        if not self.code_output.text.strip():
+            app.notification_manager.warning("No code to copy")
+            return
+        
+        # Copy to clipboard
+        from kivy.core.clipboard import Clipboard
+        Clipboard.copy(self.code_output.text)
+        
+        app.notification_manager.success("Code copied to clipboard")
+    
+    def _on_save_to_file(self, instance):
+        """Handle save to file button press."""
+        app = App.get_running_app()
+        
+        code = self.code_output.text.strip()
+        if not code:
+            app.notification_manager.warning("No code to save")
+            return
+        
+        # Map language to file extension
+        language = self.language_spinner.text
+        extensions = {
+            'Python': '.py',
+            'JavaScript': '.js',
+            'Java': '.java',
+            'C++': '.cpp',
+            'Go': '.go',
+            'Rust': '.rs',
+            'PHP': '.php',
+            'Swift': '.swift',
+            'Kotlin': '.kt',
+            'C#': '.cs'
+        }
+        
+        extension = extensions.get(language, '.txt')
+        
+        # Create temporary file with the generated code
+        temp_file = app.file_manager.create_temp_file(
+            content=code,
+            prefix="generated_code_",
+            suffix=extension
+        )
+        
+        if temp_file:
+            app.notification_manager.success(f"Code saved to: {temp_file}")
+            
+            # Ask user where to save the file permanently
+            app.file_manager.select_file(
+                title=f"Save {language} Code",
+                filters=[f"*{extension}"],
+                on_selection=lambda path: self._on_save_location_selected(temp_file, path)
+            )
+        else:
+            app.notification_manager.error("Failed to save code to file")
