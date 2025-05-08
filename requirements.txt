@@ -1,0 +1,11 @@
+python3
+kivy
+psutil
+openai
+pyjnius
+android
+requests
+certifi
+charset-normalizer
+idna
+urllib3
