@@ -20,6 +20,10 @@ args = "System Resource Monitor"
 task = "workflow.run"
 args = "system_monitor_app"
 
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "El AI Assistant"
+
 [[workflows.workflow]]
 name = "System Resource Monitor"
 author = "agent"
@@ -36,6 +40,14 @@ author = "agent"
 [[workflows.workflow.tasks]]
 task = "shell.exec"
 args = "python main.py"
+
+[[workflows.workflow]]
+name = "El AI Assistant"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "python run.py"
 
 [deployment]
 run = ["sh", "-c", "pip install kivy psutil && python main.py"]

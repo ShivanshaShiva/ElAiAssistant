@@ -1,0 +1,213 @@
+#:kivy 2.1.0
+
+<SettingsScreen>:
+    name: 'settings'
+    
+    ScreenTemplate:
+        id: template
+        
+        BoxLayout:
+            id: template.content
+            orientation: 'vertical'
+            padding: dp(10)
+            spacing: dp(10)
+            
+            Label:
+                text: 'API Keys and Settings'
+                font_size: dp(20)
+                size_hint_y: None
+                height: dp(40)
+            
+            ScrollView:
+                BoxLayout:
+                    orientation: 'vertical'
+                    size_hint_y: None
+                    height: self.minimum_height
+                    spacing: dp(20)
+                    padding: dp(10)
+                    
+                    # API Keys Section
+                    BoxLayout:
+                        orientation: 'vertical'
+                        size_hint_y: None
+                        height: dp(300)
+                        
+                        Label:
+                            text: 'API Keys'
+                            font_size: dp(18)
+                            size_hint_y: None
+                            height: dp(30)
+                            halign: 'left'
+                            text_size: self.width, None
+                            bold: True
+                        
+                        # Gemma API Key
+                        BoxLayout:
+                            orientation: 'vertical'
+                            size_hint_y: None
+                            height: dp(70)
+                            
+                            BoxLayout:
+                                size_hint_y: None
+                                height: dp(30)
+                                
+                                Label:
+                                    text: 'Gemma API Key'
+                                    size_hint_x: 0.4
+                                
+                                Label:
+                                    id: gemma_status
+                                    text: 'Not Connected'
+                                    size_hint_x: 0.4
+                                    color: 0.8, 0.2, 0.2, 1  # Red by default
+                                
+                                Button:
+                                    text: 'Test'
+                                    size_hint_x: 0.2
+                                    on_release: root.test_connection('gemma')
+                            
+                            TextInput:
+                                id: gemma_key
+                                hint_text: 'Enter Gemma API Key'
+                                password: True
+                                multiline: False
+                                size_hint_y: None
+                                height: dp(40)
+                        
+                        # ChatGPT API Key
+                        BoxLayout:
+                            orientation: 'vertical'
+                            size_hint_y: None
+                            height: dp(70)
+                            
+                            BoxLayout:
+                                size_hint_y: None
+                                height: dp(30)
+                                
+                                Label:
+                                    text: 'ChatGPT API Key'
+                                    size_hint_x: 0.4
+                                
+                                Label:
+                                    id: chatgpt_status
+                                    text: 'Not Connected'
+                                    size_hint_x: 0.4
+                                    color: 0.8, 0.2, 0.2, 1  # Red by default
+                                
+                                Button:
+                                    text: 'Test'
+                                    size_hint_x: 0.2
+                                    on_release: root.test_connection('chatgpt')
+                            
+                            TextInput:
+                                id: chatgpt_key
+                                hint_text: 'Enter ChatGPT API Key'
+                                password: True
+                                multiline: False
+                                size_hint_y: None
+                                height: dp(40)
+                        
+                        # Qiskit API Key
+                        BoxLayout:
+                            orientation: 'vertical'
+                            size_hint_y: None
+                            height: dp(70)
+                            
+                            BoxLayout:
+                                size_hint_y: None
+                                height: dp(30)
+                                
+                                Label:
+                                    text: 'IBM Quantum API Key'
+                                    size_hint_x: 0.4
+                                
+                                Label:
+                                    id: qiskit_status
+                                    text: 'Not Connected'
+                                    size_hint_x: 0.4
+                                    color: 0.8, 0.2, 0.2, 1  # Red by default
+                                
+                                Button:
+                                    text: 'Test'
+                                    size_hint_x: 0.2
+                                    on_release: root.test_connection('qiskit')
+                            
+                            TextInput:
+                                id: qiskit_key
+                                hint_text: 'Enter IBM Quantum API Key'
+                                password: True
+                                multiline: False
+                                size_hint_y: None
+                                height: dp(40)
+                        
+                        Button:
+                            text: 'Save API Keys'
+                            size_hint_y: None
+                            height: dp(50)
+                            on_release: root.save_api_keys()
+                    
+                    # Local Model Section
+                    BoxLayout:
+                        orientation: 'vertical'
+                        size_hint_y: None
+                        height: dp(180)
+                        
+                        Label:
+                            text: 'Local Model Settings'
+                            font_size: dp(18)
+                            size_hint_y: None
+                            height: dp(30)
+                            halign: 'left'
+                            text_size: self.width, None
+                            bold: True
+                        
+                        Label:
+                            text: 'Select a local model directory for offline usage.'
+                            size_hint_y: None
+                            height: dp(30)
+                            halign: 'left'
+                            text_size: self.width, None
+                        
+                        Label:
+                            id: model_path_label
+                            text: 'No local model selected'
+                            size_hint_y: None
+                            height: dp(40)
+                            halign: 'left'
+                            text_size: self.width, None
+                            padding: dp(10), 0
+                            canvas.before:
+                                Color:
+                                    rgba: 0.15, 0.15, 0.2, 1
+                                Rectangle:
+                                    pos: self.pos
+                                    size: self.size
+                        
+                        Button:
+                            text: 'Browse for Model'
+                            size_hint_y: None
+                            height: dp(50)
+                            on_release: root.browse_for_model()
+                    
+                    # App Settings Section
+                    BoxLayout:
+                        orientation: 'vertical'
+                        size_hint_y: None
+                        height: dp(200)
+                        
+                        Label:
+                            text: 'App Settings'
+                            font_size: dp(18)
+                            size_hint_y: None
+                            height: dp(30)
+                            halign: 'left'
+                            text_size: self.width, None
+                            bold: True
+                        
+                        # Additional settings would go here
+                        Label:
+                            text: 'Additional settings will be available in a future update.'
+                            size_hint_y: None
+                            height: dp(40)
+                            halign: 'left'
+                            text_size: self.width, None

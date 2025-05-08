@@ -1,0 +1,301 @@
+#:kivy 2.1.0
+#:import Factory kivy.factory.Factory
+
+<Notification>:
+    canvas.before:
+        Color:
+            rgba: self.background_color if hasattr(self, 'background_color') else [0.2, 0.4, 0.8, 0.9]
+        RoundedRectangle:
+            pos: self.pos
+            size: self.size
+            radius: [10]
+
+<NavigationDrawer@BoxLayout>:
+    orientation: 'vertical'
+    padding: dp(10)
+    spacing: dp(10)
+    canvas.before:
+        Color:
+            rgba: 0.15, 0.15, 0.2, 1
+        Rectangle:
+            pos: self.pos
+            size: self.size
+    
+    Label:
+        text: 'El AI Assistant'
+        font_size: dp(24)
+        size_hint_y: None
+        height: dp(50)
+        bold: True
+    
+    ScrollView:
+        BoxLayout:
+            orientation: 'vertical'
+            size_hint_y: None
+            height: self.minimum_height
+            spacing: dp(5)
+            
+            NavButton:
+                text: 'Home'
+                on_release: app.screen_manager.current = 'home'
+            
+            NavButton:
+                text: 'Sanskrit NLP'
+                on_release: app.screen_manager.current = 'sanskrit'
+            
+            NavButton:
+                text: 'Instruction Learning'
+                on_release: app.screen_manager.current = 'instruction'
+            
+            NavButton:
+                text: 'Model Training'
+                on_release: app.screen_manager.current = 'model_training'
+            
+            NavButton:
+                text: 'Code Generation'
+                on_release: app.screen_manager.current = 'code_generation'
+            
+            NavButton:
+                text: 'Repository Analysis'
+                on_release: app.screen_manager.current = 'repository'
+            
+            NavButton:
+                text: 'Data Comparison'
+                on_release: app.screen_manager.current = 'data_comparison'
+            
+            NavButton:
+                text: 'Settings'
+                on_release: app.screen_manager.current = 'settings'
+            
+            NavButton:
+                text: 'About'
+                on_release: app.screen_manager.current = 'about'
+
+<NavButton@Button>:
+    size_hint_y: None
+    height: dp(50)
+    background_normal: ''
+    background_color: 0.2, 0.2, 0.3, 1
+    background_down: ''
+    background_color_down: 0.3, 0.3, 0.4, 1
+    font_size: dp(16)
+    halign: 'left'
+    text_size: self.width - dp(20), None
+    padding: dp(15), 0
+
+<ScreenTemplate@BoxLayout>:
+    orientation: 'vertical'
+    padding: dp(0)
+    spacing: dp(0)
+    
+    BoxLayout:
+        id: header
+        size_hint_y: None
+        height: dp(56)
+        padding: dp(10)
+        canvas.before:
+            Color:
+                rgba: 0.15, 0.15, 0.2, 1
+            Rectangle:
+                pos: self.pos
+                size: self.size
+        
+        Button:
+            id: nav_button
+            size_hint_x: None
+            width: dp(40)
+            background_normal: ''
+            background_color: 0, 0, 0, 0
+            on_release: app.toggle_nav_drawer()
+            Image:
+                source: 'kivy_app/resources/menu.png'
+                center_x: self.parent.center_x
+                center_y: self.parent.center_y
+                size: dp(24), dp(24)
+        
+        Label:
+            id: title
+            text: 'Screen Title'
+            font_size: dp(20)
+            size_hint_x: 1
+            halign: 'left'
+            text_size: self.width - dp(20), None
+    
+    BoxLayout:
+        id: content
+        orientation: 'vertical'
+        padding: dp(10)
+        spacing: dp(10)
+
+<HomeScreen>:
+    name: 'home'
+    
+    ScreenTemplate:
+        id: template
+        
+        BoxLayout:
+            id: template.content
+            orientation: 'vertical'
+            padding: dp(20)
+            spacing: dp(20)
+            
+            Label:
+                text: 'Welcome to El AI Assistant'
+                font_size: dp(24)
+                size_hint_y: None
+                height: dp(50)
+                halign: 'center'
+            
+            Label:
+                text: 'A companion for exploring knowledge, language, and AI'
+                font_size: dp(16)
+                size_hint_y: None
+                height: dp(40)
+                halign: 'center'
+            
+            ScrollView:
+                BoxLayout:
+                    orientation: 'vertical'
+                    size_hint_y: None
+                    height: self.minimum_height
+                    spacing: dp(20)
+                    padding: dp(10)
+                    
+                    FeatureCard:
+                        title: 'Sanskrit NLP'
+                        description: 'Analyze Sanskrit text with modern NLP techniques'
+                        icon: 'language'
+                        on_release: app.screen_manager.current = 'sanskrit'
+                    
+                    FeatureCard:
+                        title: 'Instruction Learning'
+                        description: 'Teach El new grammar rules and patterns'
+                        icon: 'book'
+                        on_release: app.screen_manager.current = 'instruction'
+                    
+                    FeatureCard:
+                        title: 'Code Generation'
+                        description: 'Generate code with AI assistance'
+                        icon: 'code'
+                        on_release: app.screen_manager.current = 'code_generation'
+                    
+                    FeatureCard:
+                        title: 'Repository Analysis'
+                        description: 'Analyze and process code repositories'
+                        icon: 'folder'
+                        on_release: app.screen_manager.current = 'repository'
+
+<FeatureCard@Button>:
+    title: 'Feature'
+    description: 'Description'
+    icon: 'default'
+    size_hint_y: None
+    height: dp(120)
+    background_normal: ''
+    background_color: 0.2, 0.2, 0.3, 1
+    
+    BoxLayout:
+        orientation: 'vertical'
+        pos: root.pos
+        size: root.size
+        padding: dp(15)
+        
+        Label:
+            text: root.title
+            font_size: dp(18)
+            size_hint_y: None
+            height: dp(30)
+            halign: 'left'
+            text_size: self.width, None
+            bold: True
+        
+        Label:
+            text: root.description
+            font_size: dp(14)
+            halign: 'left'
+            text_size: self.width, None
+
+<SanskritScreen>:
+    name: 'sanskrit'
+    
+    ScreenTemplate:
+        id: template
+        
+        BoxLayout:
+            id: template.content
+            orientation: 'vertical'
+            padding: dp(10)
+            spacing: dp(10)
+            
+            Label:
+                text: 'Sanskrit NLP'
+                font_size: dp(24)
+                size_hint_y: None
+                height: dp(40)
+            
+            TextInput:
+                id: sanskrit_input
+                hint_text: 'Enter Sanskrit text here...'
+                size_hint_y: None
+                height: dp(150)
+                multiline: True
+            
+            BoxLayout:
+                size_hint_y: None
+                height: dp(50)
+                spacing: dp(10)
+                
+                Button:
+                    text: 'Analyze Text'
+                    on_release: root.analyze_text()
+                
+                Button:
+                    text: 'Clear'
+                    on_release: root.clear_input()
+            
+            TabbedPanel:
+                do_default_tab: False
+                
+                TabbedPanelItem:
+                    text: 'Tokenization'
+                    
+                    ScrollView:
+                        Label:
+                            id: tokenization_result
+                            text: 'Results will appear here'
+                            size_hint_y: None
+                            height: self.texture_size[1]
+                            text_size: self.width, None
+                
+                TabbedPanelItem:
+                    text: 'Grammar'
+                    
+                    ScrollView:
+                        Label:
+                            id: grammar_result
+                            text: 'Results will appear here'
+                            size_hint_y: None
+                            height: self.texture_size[1]
+                            text_size: self.width, None
+                
+                TabbedPanelItem:
+                    text: 'POS Tagging'
+                    
+                    ScrollView:
+                        Label:
+                            id: pos_result
+                            text: 'Results will appear here'
+                            size_hint_y: None
+                            height: self.texture_size[1]
+                            text_size: self.width, None
+                
+                TabbedPanelItem:
+                    text: 'Semantics'
+                    
+                    ScrollView:
+                        Label:
+                            id: semantics_result
+                            text: 'Results will appear here'
+                            size_hint_y: None
+                            height: self.texture_size[1]
+                            text_size: self.width, None
