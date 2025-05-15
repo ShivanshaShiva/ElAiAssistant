@@ -1,223 +1,226 @@
 """
 System Monitor Module.
-This module is responsible for collecting system resource data using psutil.
+This module dynamically switches between psutil-based monitoring and
+os/subprocess-based monitoring, ensuring compatibility across platforms.
 """
 
 import os
 import platform
-import psutil
 import time
 from datetime import datetime
 
+# Attempt to import psutil
+try:
+    import psutil
+    PSUTIL_AVAILABLE = True
+except ImportError:
+    PSUTIL_AVAILABLE = False
+
+
 class SystemMonitor:
-    """Collects and provides system resource usage data."""
-    
+    """System monitor that dynamically selects psutil or fallback implementation."""
     def __init__(self):
-        """Initialize the system monitor with empty data."""
-        self.cpu_data = {
-            'percent': 0,
-            'per_cpu': [],
-            'count': psutil.cpu_count(logical=True),
-            'physical_count': psutil.cpu_count(logical=False)
-        }
+        self.cpu_data = {}
+        self.memory_data = {}
+        self.disk_data = {}
+        self.network_data = {}
+        self.prev_net_io = None
+        self.prev_disk_io = None
+        self.prev_time = None
+        self.system_info = {}
         
-        self.memory_data = {
-            'total': 0,
-            'available': 0,
-            'percent': 0,
-            'used': 0,
-            'free': 0
-        }
-        
-        self.disk_data = {
-            'total': 0,
-            'used': 0,
-            'free': 0,
-            'percent': 0,
-            'read_count': 0,
-            'write_count': 0,
-            'read_bytes': 0,
-            'write_bytes': 0
-        }
-        
-        self.network_data = {
-            'bytes_sent': 0,
-            'bytes_recv': 0,
-            'packets_sent': 0,
-            'packets_recv': 0,
-            'sent_speed': 0,  # Bytes per second
-            'recv_speed': 0   # Bytes per second
-        }
-        
+        if PSUTIL_AVAILABLE:
+            self._initialize_psutil()
+        else:
+            self._initialize_fallback()
+
+        self.update()
+
+    def _initialize_psutil(self):
+        """Initialize psutil-specific attributes."""
         self.prev_net_io = psutil.net_io_counters()
         self.prev_disk_io = psutil.disk_io_counters()
         self.prev_time = time.time()
-        
-        # System information (static data, only collected once)
-        self.system_info = self._get_system_info()
-        
-        # Perform initial update
-        self.update()
-    
+        self.system_info = self._get_system_info_psutil()
+
+    def _initialize_fallback(self):
+        """Initialize fallback attributes."""
+        self.prev_net_io = self._get_network_data_fallback()
+        self.prev_disk_io = self._get_disk_data_fallback()
+        self.prev_time = time.time()
+        self.system_info = self._get_system_info_fallback()
+
     def update(self):
         """Update all system resource data."""
-        self._update_cpu()
-        self._update_memory()
-        self._update_disk()
-        self._update_network()
-    
-    def _update_cpu(self):
-        """Update CPU usage data."""
-        self.cpu_data['percent'] = psutil.cpu_percent(interval=0)
-        self.cpu_data['per_cpu'] = psutil.cpu_percent(interval=0, percpu=True)
-    
-    def _update_memory(self):
-        """Update memory usage data."""
+        if PSUTIL_AVAILABLE:
+            self._update_cpu_psutil()
+            self._update_memory_psutil()
+            self._update_disk_psutil()
+            self._update_network_psutil()
+        else:
+            self._update_cpu_fallback()
+            self._update_memory_fallback()
+            self._update_disk_fallback()
+            self._update_network_fallback()
+
+    # ------------------ Psutil-Based Methods ------------------
+    def _update_cpu_psutil(self):
+        """Update CPU usage data using psutil."""
+        self.cpu_data = {
+            'percent': psutil.cpu_percent(interval=0),
+            'per_cpu': psutil.cpu_percent(interval=0, percpu=True),
+            'count': psutil.cpu_count(logical=True),
+            'physical_count': psutil.cpu_count(logical=False)
+        }
+
+    def _update_memory_psutil(self):
+        """Update memory usage data using psutil."""
         mem = psutil.virtual_memory()
-        self.memory_data['total'] = mem.total
-        self.memory_data['available'] = mem.available
-        self.memory_data['percent'] = mem.percent
-        self.memory_data['used'] = mem.used
-        self.memory_data['free'] = mem.free
-    
-    def _update_disk(self):
-        """Update disk usage and I/O data."""
-        # Get disk usage
+        self.memory_data = {
+            'total': mem.total,
+            'available': mem.available,
+            'percent': mem.percent,
+            'used': mem.used,
+            'free': mem.free
+        }
+
+    def _update_disk_psutil(self):
+        """Update disk usage and I/O data using psutil."""
         disk = psutil.disk_usage('/')
-        self.disk_data['total'] = disk.total
-        self.disk_data['used'] = disk.used
-        self.disk_data['free'] = disk.free
-        self.disk_data['percent'] = disk.percent
-        
-        # Get disk I/O statistics
         current_disk_io = psutil.disk_io_counters()
         current_time = time.time()
         time_delta = current_time - self.prev_time
-        
+
         if time_delta > 0:
-            # Calculate I/O rates
             read_delta = current_disk_io.read_bytes - self.prev_disk_io.read_bytes
             write_delta = current_disk_io.write_bytes - self.prev_disk_io.write_bytes
-            
-            self.disk_data['read_count'] = current_disk_io.read_count
-            self.disk_data['write_count'] = current_disk_io.write_count
-            self.disk_data['read_bytes'] = read_delta / time_delta  # Bytes per second
-            self.disk_data['write_bytes'] = write_delta / time_delta  # Bytes per second
-        
+            self.disk_data = {
+                'total': disk.total,
+                'used': disk.used,
+                'free': disk.free,
+                'percent': disk.percent,
+                'read_bytes': read_delta / time_delta,
+                'write_bytes': write_delta / time_delta
+            }
+
         self.prev_disk_io = current_disk_io
-    
-    def _update_network(self):
-        """Update network usage data."""
+        self.prev_time = current_time
+
+    def _update_network_psutil(self):
+        """Update network usage data using psutil."""
         current_net_io = psutil.net_io_counters()
         current_time = time.time()
         time_delta = current_time - self.prev_time
-        
+
         if time_delta > 0:
-            # Calculate network rates
             sent_delta = current_net_io.bytes_sent - self.prev_net_io.bytes_sent
             recv_delta = current_net_io.bytes_recv - self.prev_net_io.bytes_recv
-            
-            self.network_data['bytes_sent'] = current_net_io.bytes_sent
-            self.network_data['bytes_recv'] = current_net_io.bytes_recv
-            self.network_data['packets_sent'] = current_net_io.packets_sent
-            self.network_data['packets_recv'] = current_net_io.packets_recv
-            self.network_data['sent_speed'] = sent_delta / time_delta  # Bytes per second
-            self.network_data['recv_speed'] = recv_delta / time_delta  # Bytes per second
-        
+            self.network_data = {
+                'bytes_sent': current_net_io.bytes_sent,
+                'bytes_recv': current_net_io.bytes_recv,
+                'sent_speed': sent_delta / time_delta,
+                'recv_speed': recv_delta / time_delta
+            }
+
         self.prev_net_io = current_net_io
         self.prev_time = current_time
-    
-    def _get_system_info(self):
-        """Get static system information."""
+
+    def _get_system_info_psutil(self):
+        """Get static system information using psutil."""
+        info = {
+            'system': platform.system(),
+            'node': platform.node(),
+            'release': platform.release(),
+            'version': platform.version(),
+            'machine': platform.machine(),
+            'processor': platform.processor(),
+            'python_version': platform.python_version(),
+            'boot_time': datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        return info
+
+    # ------------------ Fallback Methods ------------------
+    def _update_cpu_fallback(self):
+        """Update CPU usage data using fallback."""
+        self.cpu_data = {
+            'percent': 0,  # Placeholder for CPU percentage
+            'per_cpu': [],
+            'count': os.cpu_count(),
+            'physical_count': os.cpu_count()
+        }
+
+    def _update_memory_fallback(self):
+        """Update memory usage data using fallback."""
         try:
-            # Basic system information
-            info = {
-                'system': platform.system(),
-                'node': platform.node(),
-                'release': platform.release(),
-                'version': platform.version(),
-                'machine': platform.machine(),
-                'processor': platform.processor(),
-                'python_version': platform.python_version(),
-                'boot_time': datetime.fromtimestamp(psutil.boot_time()).strftime("%Y-%m-%d %H:%M:%S"),
-            }
-            
-            # CPU information
-            cpu_freq = psutil.cpu_freq()
-            if cpu_freq:
-                info['cpu_freq_current'] = cpu_freq.current
-                if hasattr(cpu_freq, 'min'):
-                    info['cpu_freq_min'] = cpu_freq.min
-                if hasattr(cpu_freq, 'max'):
-                    info['cpu_freq_max'] = cpu_freq.max
-            
-            # Memory information
-            mem = psutil.virtual_memory()
-            swap = psutil.swap_memory()
-            info['total_memory'] = mem.total
-            info['total_swap'] = swap.total
-            
-            # Disk information
-            disk_partitions = []
-            for partition in psutil.disk_partitions(all=False):
-                try:
-                    usage = psutil.disk_usage(partition.mountpoint)
-                    disk_partitions.append({
-                        'device': partition.device,
-                        'mountpoint': partition.mountpoint,
-                        'fstype': partition.fstype,
-                        'total': usage.total,
-                        'percent': usage.percent
-                    })
-                except (PermissionError, OSError):
-                    # Skip partitions that cannot be accessed
-                    continue
-            
-            info['disk_partitions'] = disk_partitions
-            
-            # Network information
-            network_interfaces = []
-            for name, stats in psutil.net_if_stats().items():
-                network_interfaces.append({
-                    'name': name,
-                    'isup': stats.isup,
-                    'speed': getattr(stats, 'speed', 0),
-                    'mtu': stats.mtu
-                })
-            
-            info['network_interfaces'] = network_interfaces
-            
-            return info
-        
+            with open("/proc/meminfo", "r") as meminfo:
+                lines = meminfo.readlines()
+                total = int(lines[0].split()[1]) * 1024
+                free = int(lines[1].split()[1]) * 1024
+                available = int(lines[2].split()[1]) * 1024
+                self.memory_data = {
+                    'total': total,
+                    'available': available,
+                    'used': total - free,
+                    'free': free,
+                    'percent': (total - free) / total * 100
+                }
         except Exception as e:
-            # In case of error, return basic information
-            return {
-                'error': str(e),
-                'system': platform.system(),
-                'node': platform.node(),
-                'processor': platform.processor()
+            self.memory_data = {'error': str(e)}
+
+    def _update_disk_fallback(self):
+        """Update disk usage data using fallback."""
+        try:
+            result = os.popen("df /").readlines()[1].split()
+            self.disk_data = {
+                'total': int(result[1]) * 1024,
+                'used': int(result[2]) * 1024,
+                'free': int(result[3]) * 1024,
+                'percent': int(result[4].strip('%'))
             }
-    
+        except Exception as e:
+            self.disk_data = {'error': str(e)}
+
+    def _update_network_fallback(self):
+        """Update network usage data using fallback."""
+        try:
+            with open("/proc/net/dev", "r") as net_dev:
+                lines = net_dev.readlines()[2:]
+                total_received = sum(int(line.split()[1]) for line in lines)
+                total_sent = sum(int(line.split()[9]) for line in lines)
+                self.network_data = {
+                    'bytes_recv': total_received,
+                    'bytes_sent': total_sent,
+                }
+        except Exception as e:
+            self.network_data = {'error': str(e)}
+
+    def _get_system_info_fallback(self):
+        """Get static system information using fallback."""
+        return {
+            'system': platform.system(),
+            'node': platform.node(),
+            'release': platform.release(),
+            'version': platform.version(),
+            'machine': platform.machine(),
+            'processor': platform.processor()
+        }
+
+    # ------------------ Public Methods ------------------
     def get_cpu_data(self):
-        """Get the current CPU data."""
         return self.cpu_data
-    
+
     def get_memory_data(self):
-        """Get the current memory data."""
         return self.memory_data
-    
+
     def get_disk_data(self):
-        """Get the current disk data."""
         return self.disk_data
-    
+
     def get_network_data(self):
-        """Get the current network data."""
         return self.network_data
-    
+
     def get_system_info(self):
-        """Get system information."""
         return self.system_info
-    
+
     def get_all_data(self):
         """Get all current data in a single dictionary."""
         return {
@@ -225,5 +228,6 @@ class SystemMonitor:
             'cpu': self.get_cpu_data(),
             'memory': self.get_memory_data(),
             'disk': self.get_disk_data(),
-            'network': self.get_network_data()
+            'network': self.get_network_data(),
+            'system_info': self.get_system_info()
         }
