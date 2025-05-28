@@ -305,13 +305,13 @@ p4a.branch = master
 p4a.commit = HEAD
 
 # (str) python-for-android git clone directory (if empty, it will be automatically cloned from github)
-p4a.source_dir =
+#p4a.source_dir =
 
 # (str) The directory in which python-for-android should look for your own build recipes (if any)
 p4a.local_recipes =
 
 # (str) Filename to the hook for p4a
-p4a.hook =
+#p4a.hook =
 
 # (str) Bootstrap to use for android builds
 # p4a.bootstrap = sdl2
@@ -324,7 +324,7 @@ p4a.hook =
 # Setting this to false will pass --ignore-setup-py, true will pass --use-setup-py
 # NOTE: this is general setuptools integration, having pyproject.toml is enough, no need to generate
 # setup.py if you're using Poetry, but you need to add "toml" to source.include_exts.
-p4a.setup_py = false
+#p4a.setup_py = false
 
 # (str) extra command line arguments to pass when invoking pythonforandroid.toolchain
 #p4a.extra_args =
