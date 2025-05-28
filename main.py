@@ -11,6 +11,7 @@ from kivy.app import App
 from kivy.uix.tabbedpanel import TabbedPanel
 from kivy.uix.boxlayout import BoxLayout
 from kivy.uix.label import Label
+from kivy uic.button import Button
 from kivy.clock import Clock
 from kivy.core.window import Window
 from kivy.config import Config
@@ -82,8 +83,10 @@ class SystemMonitorApp(App):
             font_size='20sp',
             halign='left',
             valign='middle',
-            size_hint=(1, 1)
+            size_hint=(0.7, 1)
         ))
+        launch_button = Button(text='ElAiAssitant', size_hint=(0.3, 1), on_press=self.launch_ElAiAss)
+        title_bar.add_widget(launch_button)
         
         # Create the main tabbed panel
         self.tabbed_panel = MainTabbedPanel(
@@ -112,12 +115,15 @@ class SystemMonitorApp(App):
             if hasattr(tab.content, 'update_display'):
                 tab.content.update_display()
     
+    def launch_ElAiAss(self, *args):
+        from kivy_app.main import ElAiApp
+        self.stop()
+        ElAiApp().run()
+
     def on_stop(self):
-        """Clean up resources when the app is closing."""
-        # Close the database connection
         self.storage.close()
 
 
-if __name__ == '__main__':
+def launch_system_monitor():
     # Run the application
     SystemMonitorApp().run()
