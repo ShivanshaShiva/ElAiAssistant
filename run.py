@@ -58,7 +58,8 @@ def authenticate_user():
 if name == 'main':
     if authenticate_user():
     # Run the system monitor UI only after successful login
-        import main
+        from main import launch_system_monitor
+        launch_system_monitor()
     # This runs SystemMonitorApp from main.py
     else:
         print("Access denied. Exiting...")
