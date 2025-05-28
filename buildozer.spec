@@ -10,7 +10,8 @@ package.name = elaiassistant
 package.domain = com.shivanshashiva
 
 # (str) Source code where the main.py live
-source.dir = /run.py
+source.dir = .
+main.py = run.py
 
 # (list) Source files to include (let empty to include all the files)
 source.include_exts = py,png,jpg,kv,atlas,json,txt
@@ -36,7 +37,7 @@ version = 0.1.0
 
 # (list) Application requirements
 # comma separated e.g. requirements = sqlite3,kivy
-requirements = python3,kivy,psutil,openai,pyjnius,android,requests,certifi,charset-normalizer,idna,urllib3, qiskit
+requirements = python3,kivy,psutil,openai,pyjnius,android,requests,certifi,charset-normalizer,idna,urllib3,qiskit
 
 # (str) Custom source folders for requirements
 # Sets custom source for any requirements with recipes
@@ -124,7 +125,7 @@ android.entrypoint = org.kivy.android.PythonActivity
 
 # (str) Full name including package path of the Java class that implements Android Activity
 # use that parameter together with android.entrypoint to set custom Java class instead of PythonActivity
-android.activity_class_name = org.kivy.android.PythonActivity
+#android.activity_class_name = org.kivy.android.PythonActivity
 
 # (str) Extra xml to write directly inside the <manifest> element of AndroidManifest.xml
 # use that parameter to provide a filename from where to load your custom XML code
@@ -154,7 +155,7 @@ android.apptheme = "@android:style/Theme.NoTitleBar"
 # their classes. Don't add jars that you do not need, since extra jars can slow
 # down the build process. Allows wildcards matching, for example:
 # OUYA-ODK/libs/*.jar
-android.add_jars = foo.jar,bar.jar,path/to/more/*.jar
+#android.add_jars = foo.jar,bar.jar,path/to/more/*.jar
 
 # (list) List of Java files to add to the android project (can be java or a
 # directory containing the files)
