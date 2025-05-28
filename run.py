@@ -36,24 +36,31 @@ except ImportError:
     # Not running on Android, no need to request permissions
     pass
 
-# Import the application
-from kivy_app.main import ElAIApp
 
-if __name__ == '__main__':
-    # Check if GitHub access is restricted to owner
-    def check_github_owner():
-        """Check if the GitHub repo is accessed by the owner."""
-        # This is a basic implementation. In a real app, you would use
-        # GitHub API to verify the user identity.
-        # For now, we'll just proceed with a log message since this is demo code
-        owner_name = "ShivanshaShiva"
-        owner_email = "nkg7060@gmail.com"
-        Logger.info(f"GitHub access should be restricted to owner: {owner_name} ({owner_email})")
+
+    
+
+
+# Simulate login check (could be extended with biometric/auth)
+
+def authenticate_user():
+     # Placeholder login check (in real app, use secure auth)
+    print("Welcome to El AI Assistant")
+    username = input("Username: ")
+    password = input("Password: ")
+    if username == "ShivanshaShiva" and password == "Elena&Shivansha9717":
+        Logger.info("Login successful.")
         return True
-    
-    # Verify owner (would be a real check in production)
-    check_github_owner()
-    
-    # Run the application
-    app = ElAIApp()
-    app.run()
+    else:
+        Logger.error("Invalid credentials.")
+        return False
+
+if name == 'main':
+    if authenticate_user():
+    # Run the system monitor UI only after successful login
+        import main
+    # This runs SystemMonitorApp from main.py
+    else:
+        print("Access denied. Exiting...")
+        sys.exit(1)
+
