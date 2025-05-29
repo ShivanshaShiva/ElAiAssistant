@@ -11,7 +11,6 @@ package.domain = com.shivanshashiva
 
 # (str) Source code where the main.py live
 source.dir = .
-main.py = run.py
 
 # (list) Source files to include (let empty to include all the files)
 source.include_exts = py,png,jpg,kv,atlas,json,txt
@@ -117,11 +116,11 @@ android.skip_update = False
 # (bool) If True, then automatically accept SDK license
 # agreements. This is intended for automation only. If set to False,
 # the default, you will be shown the license when first running
-buildozer.
+# buildozer.
 android.accept_sdk_license = True
 
 # (str) Android entry point, default is ok for Kivy-based app
-android.entrypoint = org.kivy.android.PythonActivity
+#android.entrypoint = org.kivy.android.PythonActivity
 
 # (str) Full name including package path of the Java class that implements Android Activity
 # use that parameter together with android.entrypoint to set custom Java class instead of PythonActivity
@@ -140,7 +139,7 @@ android.entrypoint = org.kivy.android.PythonActivity
 #android.service_class_name = org.kivy.android.PythonService
 
 # (str) Android app theme, default is ok for Kivy-based app
-android.apptheme = "@android:style/Theme.NoTitleBar"
+# android.apptheme = "@android:style/Theme.NoTitleBar"
 
 # (list) Pattern to whitelist for the whole project
 #android.whitelist =
@@ -188,12 +187,12 @@ android.apptheme = "@android:style/Theme.NoTitleBar"
 # (bool) Enable AndroidX support. Enable when 'android.gradle_dependencies'
 # contains an 'androidx' package, or any package from Kotlin source.
 # android.enable_androidx requires android.use_gradle=True
-android.enable_androidx = True
+#android.enable_androidx = True
 
 # (list) add java compile options
 # this can for example be necessary when importing certain java libraries using the 'android.gradle_dependencies' option
 # see https://developer.android.com/studio/write/java8-support for further information
-android.add_compile_options = "sourceCompatibility = 1.8", "targetCompatibility = 1.8"
+# android.add_compile_options = "sourceCompatibility = 1.8", "targetCompatibility = 1.8"
 
 # (list) Gradle repositories to add {can be necessary for some android.gradle_dependencies}
 # please enclose in double quotes 
@@ -205,10 +204,10 @@ android.add_compile_options = "sourceCompatibility = 1.8", "targetCompatibility 
 # can be necessary to solve conflicts in gradle_dependencies
 # please enclose in double quotes 
 # e.g. android.add_packaging_options = "exclude 'META-INF/common.kotlin_module'", "exclude 'META-INF/*.kotlin_module'"
-android.add_packaging_options =
+#android.add_packaging_options =
 
 # (list) Java classes to add as activities to the manifest.
-android.add_activities = com.example.ExampleActivity
+#android.add_activities = com.example.ExampleActivity
 
 # (str) OUYA Console category. Should be one of GAME or APP
 # If you leave this blank, OUYA support will not be enabled
@@ -224,7 +223,7 @@ android.add_activities = com.example.ExampleActivity
 #android.res_xml = PATH_TO_FILE,
 
 # (str) launchMode to set for the main activity
-android.manifest.launch_mode = standard
+#android.manifest.launch_mode = standard
 
 # (list) Android additional libraries to copy into libs/armeabi
 #android.add_libs_armeabi = libs/android/*.so
@@ -245,23 +244,23 @@ android.manifest.launch_mode = standard
 #android.library_references =
 
 # (list) Android shared libraries which will be added to AndroidManifest.xml using <uses-library> tag
-android.uses_library =
+#android.uses_library =
 
 # (str) Android logcat filters to use
-android.logcat_filters = *:S python:D
+#android.logcat_filters = *:S python:D
 
 # (bool) Android logcat only display warnings and errors
 android.logcat_only_errors = True
 
 # (str) Android additional adb arguments
-android.adb_args = -H host.docker.internal
+#android.adb_args = -H host.docker.internal
 
 # (bool) Copy library instead of making a libpymodules.so
 #android.copy_libs = 1
 
 # (list) The Android archs to build for, choices: armeabi-v7a, arm64-v8a, x86, x86_64
 # In past, was `android.arch` as we weren't supporting builds for multiple archs at the same time.
-android.archs = arm64-v8a,
+android.archs = arm64-v8a, armeabi-v7a
 
 # (int) overrides automatic versionCode computation (used in build.gradle)
 # this is not the same as app version and should only be edited if you know what you're doing
@@ -296,19 +295,19 @@ android.debug_artifact = apk
 #p4a.url =
 
 # (str) python-for-android fork to use in case if p4a.url is not specified, defaults to upstream (kivy)
-p4a.fork = kivy
+#p4a.fork = kivy
 
 # (str) python-for-android branch to use, defaults to master
-p4a.branch = master
+#p4a.branch = master
 
 # (str) python-for-android specific commit to use, defaults to HEAD, must be within p4a.branch
-p4a.commit = HEAD
+#p4a.commit = HEAD
 
 # (str) python-for-android git clone directory (if empty, it will be automatically cloned from github)
 #p4a.source_dir =
 
 # (str) The directory in which python-for-android should look for your own build recipes (if any)
-p4a.local_recipes =
+#p4a.local_recipes =
 
 # (str) Filename to the hook for p4a
 #p4a.hook =
@@ -324,11 +323,12 @@ p4a.local_recipes =
 # Setting this to false will pass --ignore-setup-py, true will pass --use-setup-py
 # NOTE: this is general setuptools integration, having pyproject.toml is enough, no need to generate
 # setup.py if you're using Poetry, but you need to add "toml" to source.include_exts.
-#p4a.setup_py = false
+#p4a.setup_py = true
 
 # (str) extra command line arguments to pass when invoking pythonforandroid.toolchain
-#p4a.extra_args =
-
+# p4a.extra_args = --ignore-setup-py --extra-cflags="-Wno-error"
+# p4a.extra_args = --extra-cflags="--sysroot=/home/kali/.buildozer/android/platform/android-ndk-r25c/sysroot" --extra-ldflags="--sysroot=/home/kali/.buildozer/android/platform/android-ndk-r25c/sysroot"
+# p4a.extra_args = --extra-cflags="-U__socklen_t -U__SOCKLEN_T"
 
 #
 # iOS specific
