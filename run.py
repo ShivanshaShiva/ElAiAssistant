@@ -61,7 +61,5 @@ if name == 'main':
         from main import launch_system_monitor
         launch_system_monitor()
     # This runs SystemMonitorApp from main.py
-    else:
-        print("Access denied. Exiting...")
-        sys.exit(1)
+   
 
