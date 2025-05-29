@@ -55,7 +55,7 @@ def authenticate_user():
         Logger.error("Invalid credentials.")
         return False
 
-if name == 'main':
+if __name__ == '__main__':
     if authenticate_user():
     # Run the system monitor UI only after successful login
         from main import launch_system_monitor
