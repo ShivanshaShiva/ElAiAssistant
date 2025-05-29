@@ -41,25 +41,13 @@ except ImportError:
     
 
 
-# Simulate login check (could be extended with biometric/auth)
 
-def authenticate_user():
-     # Placeholder login check (in real app, use secure auth)
-    print("Welcome to El AI Assistant")
-    username = input("Username: ")
-    password = input("Password: ")
-    if username == "ShivanshaShiva" and password == "Elena&Shivansha9717":
-        Logger.info("Login successful.")
-        return True
-    else:
-        Logger.error("Invalid credentials.")
-        return False
 
 if __name__ == '__main__':
-    if authenticate_user():
+    
     # Run the system monitor UI only after successful login
-        from main import launch_system_monitor
-        launch_system_monitor()
+    from main import launch_system_monitor
+    launch_system_monitor()
     # This runs SystemMonitorApp from main.py
    
 
